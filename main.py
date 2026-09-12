@@ -7,12 +7,12 @@ app = Ursina()
 
 earth = Sprite(texture='Earth', ppu=1, double_sided = True)
 earth_target_radius = 6.3781
-earth_scale = earth_target_radius / earth.model_bounds.size.x
+earth_scale = earth_target_radius*2 / earth.model_bounds.size.x
 earth.scale = earth_scale
 
 moon = Sprite(texture='FullMoon', ppu=1, double_sided = True, position = (384.399,0,0), scale = 1.737)
 moon_target_radius = 6.3781
-moon_scale = moon_target_radius / moon.model_bounds.size.x
+moon_scale = moon_target_radius*2 / moon.model_bounds.size.x
 moon.scale = moon_scale
 
 
