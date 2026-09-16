@@ -46,7 +46,7 @@ class PhysObject:
     def update(self):
         pass
     
-    def calcintegral(self, r, v, parent):
+    def calcintegral(self, r, v, parent:PhysObject|FixObject):
         state0 = np.concatenate((r, v)).astype(DTYPE)
 
         def derivative(t, state):
@@ -77,14 +77,14 @@ dt = 2000000
 
 Earth = FixObject('Earth', 1, 5.972e24 , np.array([0,0,0]), np.array([0,0,0]))
 
-Moon = PhysObject('Moon', 1, 7.34767309e22, np.array([384399000, 0, 0], dtype=DTYPE), np.array([-500,700,400], dtype=DTYPE))
+Moon = PhysObject('Moon', 1, 7.34767309e22, np.array([384399000, 0, 0], dtype=DTYPE), np.array([0,1018,0], dtype=DTYPE))
 
 start_time = time.time()
 
 solution =  Moon.calcintegral(Moon.position, Moon.velocity, Earth)
 
-print("Final position:", solution.sol(20))
-print("Final velocity:", solution.sol(20))
+print("Final position:", solution.y[:3 , -1])
+print("Final velocity:", solution.y[3: ,-1])
 
 print(time.time()-start_time)
 
@@ -124,7 +124,7 @@ ax.scatter(
     s=50,
     label='Moon start'
 )
-
+ax.axis('equal')
 ax.set_xlabel('X [m]')
 ax.set_ylabel('Y [m]')
 ax.set_zlabel('Z [m]')
