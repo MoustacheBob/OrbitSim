@@ -9,14 +9,15 @@ import matplotlib.pyplot as plt
 DTYPE = np.float64
 
 class FixObject:
-    def __init__(self, Name, radius, mass, position: np.array(), velocity: np.array()):
+    def __init__(self, radius, mass, position: np.array(), velocity: np.array()):
 
-        self.name = Name
         self.radius = radius
         self.mass = mass
         self.position = np.asarray(position, dtype=float)
         self.velocity = np.asarray(velocity, dtype=float)
+
         self.mu = constants.G * self.mass
+        self.soi_radius = 1e67
 
     def update(self, dt):
         self.move(self.velocity, dt)
@@ -29,10 +30,11 @@ class FixObject:
 
     
 
-class PhysObject:
-    def __init__(self, Name, radius, mass, position, velocity, parent = None):
+    
 
-        self.name = Name
+class PhysObject:
+    def __init__(self, radius, mass, position, velocity, parent = None):
+
         self.radius = radius
         self.mass = mass
         self.parent = parent
@@ -42,12 +44,11 @@ class PhysObject:
         
         self.mu = constants.G * self.mass
         self.dt = self.getOrbitalPeriod()
+        self.soi_radius = np.linalg.norm(self.position - parent.position) * ((self.mass/parent.mass)**(2/5)) if parent is not None else 1e67
 
 
-    def update(self):
-        pass
     
-    def getOrbitalPeriod(self, r = None, v = None, parent = None):
+    def getOrbitalPeriod(self, r = None, v = None, parent = None):  # -----> float Orbital Period in seconds
         r = self.position if r is None else r
         v = self.velocity if v is None else v
         parent = self.parent if parent is None else parent
@@ -62,14 +63,14 @@ class PhysObject:
 
         return t
 
-    def calcintegral(self, r=None, v=None, parent=None):
+    def calcintegral(self, r=None, v=None, parent=None):    #------>.y matrix [:3] for position , [3:] for velocity , .sol(t) for matrix at time t
         r = self.position if r is None else r
         v = self.velocity if v is None else v
         parent = self.parent if parent is None else parent
         state0 = np.concatenate((r, v)).astype(DTYPE)
 
 
-        def derivative(t, state):
+        def derivative(t, state):       #--------> function of gravity to feed into solve_ivp
             position = state[:3]
             velocity = state[3:]
 
@@ -95,12 +96,12 @@ class PhysObject:
 
 #dt = 2000000000
 
-Earth = FixObject('Earth', 6.671e6, 5.972e24 , np.array([0,0,0]), np.array([0,0,0]))
+Earth = FixObject(6.671e6, 5.972e24 , (0,0,0), (0,0,0))
 
-#Moon = PhysObject('Moon', 1, 10000, (300000+ Earth.radius, 0, 0), (0,5730,0), parent=Earth)
-Moon = PhysObject('Moon', 1, 7.34767309e22, np.array([384399000, 0, 0], dtype=DTYPE), np.array([0,1018,0], dtype=DTYPE), parent=Earth)
+#Moon = PhysObject( 1, 10000, (100000+ Earth.radius, 0, 0), (0,10850.5,0), parent=Earth)
+Moon = PhysObject(1, 7.34767309e22, np.array([384399000, 0, 0], dtype=DTYPE), np.array([0,1018,0], dtype=DTYPE), parent=Earth)
 
-#Ship = PhysObject('Ship', 1, 2000, np.array([300000000, 0, 0], dtype=DTYPE), np.array([0, 1000, 0], dtype=DTYPE), Earth)
+#Ship = PhysObject(1, 2000, np.array([300000000, 0, 0], dtype=DTYPE), np.array([0, 1000, 0], dtype=DTYPE), Earth)
 
 start_time = time.time()
 
@@ -114,6 +115,7 @@ position_difference = Moon.position - solutionMoon.y[:3, -1]
 print("position difference:", position_difference)
 
 print(time.time()-start_time)
+print(Moon.soi_radius)
 
 
 #   - matplotlib visualization
@@ -133,14 +135,15 @@ vz = states[5]
 fig = plt.figure(figsize=(8, 8))
 ax = fig.add_subplot(111, projection='3d')
 
-ax.plot(x, y, z, label='Moon trajectory')
+ax.plot(x, y, z, label='Moon trajectory', color='green')
 ax.scatter(
     Earth.position[0],
     Earth.position[1],
     Earth.position[2],
     color='blue',
     s=100,
-    label='Earth'
+    label='Earth',
+    marker='o'
 )
 
 ax.scatter(

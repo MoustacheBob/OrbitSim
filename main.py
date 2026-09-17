@@ -31,7 +31,7 @@ Earth = GravBody(radius=6.3781, texture='Earth')
 
 Moon = GravBody(radius=1.737, texture='FullMoon', position = (384.399,0,0))
 
-Orbit = Entity(model=Circle(resolution=64, radius=10, mode='line'), color=color.red, scale=3, position=Vec3(20,0,0))
+#Orbit = Entity(model=Circle(resolution=64, radius=10, mode='line'), color=color.red, scale=3, position=Vec3(20,0,0))
 
 Soi = Sprite(texture='Soi2', scale=20)
 
