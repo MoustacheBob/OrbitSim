@@ -19,7 +19,7 @@ class FixObject:
         self.mu = constants.G * self.mass
 
     def update(self, dt):
-        pass
+        self.move(self.velocity, dt)
 
     
     def move(self, velocity, dt):
@@ -30,7 +30,7 @@ class FixObject:
     
 
 class PhysObject:
-    def __init__(self, Name, radius, mass, position: np.array(), velocity: np.array(), parent = None):
+    def __init__(self, Name, radius, mass, position, velocity, parent = None):
 
         self.name = Name
         self.radius = radius
@@ -41,13 +41,33 @@ class PhysObject:
         self.acceleration = np.array([ 0, 0, 0], dtype=DTYPE)
         
         self.mu = constants.G * self.mass
+        self.dt = self.getOrbitalPeriod()
 
 
     def update(self):
         pass
     
-    def calcintegral(self, r, v, parent:PhysObject|FixObject):
+    def getOrbitalPeriod(self, r = None, v = None, parent = None):
+        r = self.position if r is None else r
+        v = self.velocity if v is None else v
+        parent = self.parent if parent is None else parent
+
+        #--------- calculate normed postition and velocity
+        norm_r = np.linalg.norm(r)
+        norm_v = np.linalg.norm(v)
+
+        #-------- fatass formula: T[seconds] = 2Pi* mu * ( (2mu/r - v^2) ^(-3/2))
+
+        t = 2 * constants.pi * parent.mu * ((((2*parent.mu )/norm_r) - norm_v**2)**(-3/2))
+
+        return t
+
+    def calcintegral(self, r=None, v=None, parent=None):
+        r = self.position if r is None else r
+        v = self.velocity if v is None else v
+        parent = self.parent if parent is None else parent
         state0 = np.concatenate((r, v)).astype(DTYPE)
+
 
         def derivative(t, state):
             position = state[:3]
@@ -62,36 +82,43 @@ class PhysObject:
 
         solution = solve_ivp(
             derivative,
-            (0, dt),
+            (0, self.dt),
             state0,
             method='DOP853',
-            rtol=1e-10,
-            atol=1e-10,
             dense_output=True,
+            atol = 1e-6,
+            rtol = 1e-6
         )
 
         return solution
 
 
-dt = 2000000
+#dt = 2000000000
 
-Earth = FixObject('Earth', 1, 5.972e24 , np.array([0,0,0]), np.array([0,0,0]))
+Earth = FixObject('Earth', 6.671e6, 5.972e24 , np.array([0,0,0]), np.array([0,0,0]))
 
-Moon = PhysObject('Moon', 1, 7.34767309e22, np.array([384399000, 0, 0], dtype=DTYPE), np.array([0,1018,0], dtype=DTYPE))
+#Moon = PhysObject('Moon', 1, 10000, (300000+ Earth.radius, 0, 0), (0,5730,0), parent=Earth)
+Moon = PhysObject('Moon', 1, 7.34767309e22, np.array([384399000, 0, 0], dtype=DTYPE), np.array([0,1018,0], dtype=DTYPE), parent=Earth)
+
+#Ship = PhysObject('Ship', 1, 2000, np.array([300000000, 0, 0], dtype=DTYPE), np.array([0, 1000, 0], dtype=DTYPE), Earth)
 
 start_time = time.time()
 
-solution =  Moon.calcintegral(Moon.position, Moon.velocity, Earth)
+solutionMoon =  Moon.calcintegral()
+#solutionShip =  Ship.calcintegral()
 
-print("Final position:", solution.y[:3 , -1])
-print("Final velocity:", solution.y[3: ,-1])
+print("Final position:", solutionMoon.y[:3 , -1])
+print("Final velocity:", solutionMoon.y[3: ,-1])
+print("Orbital Period:", Moon.getOrbitalPeriod())
+position_difference = Moon.position - solutionMoon.y[:3, -1]
+print("position difference:", position_difference)
 
 print(time.time()-start_time)
 
 
 #   - matplotlib visualization
-t = np.linspace(0, dt, 10000)
-states = solution.sol(t)
+t = np.linspace(0, Moon.dt, 10000)
+states = solutionMoon.sol(t)
 
 # Position is states[0:3]
 x = states[0]
