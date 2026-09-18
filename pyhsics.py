@@ -45,7 +45,12 @@ class PhysObject:
         self.mu = constants.G * self.mass
         self.dt = self.getOrbitalPeriod()
         self.soi_radius = np.linalg.norm(self.position - parent.position) * ((self.mass/parent.mass)**(2/5)) if parent is not None else 1e67
+        self.orbit = self.calcintegral()
 
+        def getstate(self, t, orbital_period = None, orbit = None):
+        
+                return position
+        
 
     
     def getOrbitalPeriod(self, r = None, v = None, parent = None):  # -----> float Orbital Period in seconds
@@ -62,6 +67,21 @@ class PhysObject:
         t = 2 * constants.pi * parent.mu * ((((2*parent.mu )/norm_r) - norm_v**2)**(-3/2))
 
         return t
+
+    def getState(self, t, orbital_period = None, orbit = None): 
+        orbital_period = self.dt if orbital_period is None else orbital_period
+        orbit = self.dt if orbit is None else orbit
+
+        return orbit.sol(t % orbital_period)
+
+    def soiCheckFunction(self, t, target):
+        """check distance to target soi: >0 for outside, <0 for inside, used in minimize function"""
+        spacecraft_pos = self.getState(t)[:3]
+        target_pos = target.getState(t)[:3]
+
+        return np.linalg.norm(spacecraft_pos -- target_pos) - target.soi_radius
+
+
 
     def calcintegral(self, r=None, v=None, parent=None):    #------>.y matrix [:3] for position , [3:] for velocity , .sol(t) for matrix at time t
         r = self.position if r is None else r
@@ -106,6 +126,8 @@ Moon = PhysObject(1, 7.34767309e22, np.array([384399000, 0, 0], dtype=DTYPE), np
 start_time = time.time()
 
 solutionMoon =  Moon.calcintegral()
+
+
 #solutionShip =  Ship.calcintegral()
 
 print("Final position:", solutionMoon.y[:3 , -1])
