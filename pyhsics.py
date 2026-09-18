@@ -26,7 +26,10 @@ class FixObject:
     def move(self, velocity, dt):
         self.position += velocity * dt
 
-    
+    def getstate(self, t, orbital_period = None, orbit = None):
+            
+                    return self.position
+            
 
     
 
@@ -47,9 +50,6 @@ class PhysObject:
         self.soi_radius = np.linalg.norm(self.position - parent.position) * ((self.mass/parent.mass)**(2/5)) if parent is not None else 1e67
         self.orbit = self.calcintegral()
 
-        def getstate(self, t, orbital_period = None, orbit = None):
-        
-                return position
         
 
     
