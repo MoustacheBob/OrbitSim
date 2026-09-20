@@ -9,7 +9,7 @@ import matplotlib.pyplot as plt
 DTYPE = np.float64
 
 class FixObject:
-    def __init__(self, radius, mass, position: np.array(), velocity: np.array()):
+    def __init__(self, name, radius, mass, position, velocity):
 
         self.radius = radius
         self.mass = mass
@@ -19,6 +19,9 @@ class FixObject:
         self.mu = constants.G * self.mass
         self.soi_radius = 1e67
 
+    def __repr__(self) -> str:
+            return self.name 
+
     def update(self, dt):
         self.move(self.velocity, dt)
 
@@ -26,7 +29,7 @@ class FixObject:
     def move(self, velocity, dt):
         self.position += velocity * dt
 
-    def getstate(self, t, orbital_period = None, orbit = None):
+    def getState(self, t, orbital_period = None, orbit = None):
             
                     return self.position
             
@@ -36,8 +39,9 @@ class FixObject:
     
 
 class PhysObject:
-    def __init__(self, radius, mass, position, velocity, parent = None):
+    def __init__(self, name, radius, mass, position, velocity, parent = None):
 
+        self.name = name
         self.radius = radius
         self.mass = mass
         self.parent = parent
@@ -50,10 +54,13 @@ class PhysObject:
         self.soi_radius = np.linalg.norm(self.position - parent.position) * ((self.mass/parent.mass)**(2/5)) if parent is not None else 1e67
         self.orbit = self.calcintegral()
 
-        
+    def __repr__(self) -> str:
+        return self.name  
 
     
     def getOrbitalPeriod(self, r = None, v = None, parent = None):  # -----> float Orbital Period in seconds
+        """calculates orbital period of object at current position and velocity, raises exception as orbital period gety virtually infinite"""
+
         r = self.position if r is None else r
         v = self.velocity if v is None else v
         parent = self.parent if parent is None else parent
@@ -69,21 +76,40 @@ class PhysObject:
         return t
 
     def getState(self, t, orbital_period = None, orbit = None): 
+        """get position [:3] and velocity [3:] of  self with orbital period and orbit self if not specified"""
+
         orbital_period = self.dt if orbital_period is None else orbital_period
         orbit = self.dt if orbit is None else orbit
 
-        return orbit.sol(t % orbital_period)
+        return self.orbit.sol(t % orbital_period)
+
+
+    def checkSoi(self, t, target: PhysObject | FixObject) -> float:
+         """claculates distance to target Soi, >0 for outside, <0 for inside, 0 for border"""
+
+         position = self.getState(t)[:3]
+         target_postion = target.getState(t)[:3]
+
+         distance = np.linalg.norm(position - target_postion)
+
+         return distance - target.soi_radius
+
+    def findSoiChange(self):
+         pass
+
 
     def soiCheckFunction(self, t, target):
         """check distance to target soi: >0 for outside, <0 for inside, used in minimize function"""
+
         spacecraft_pos = self.getState(t)[:3]
         target_pos = target.getState(t)[:3]
 
-        return np.linalg.norm(spacecraft_pos -- target_pos) - target.soi_radius
+        return np.linalg.norm(spacecraft_pos - target_pos) - target.soi_radius
 
 
 
-    def calcintegral(self, r=None, v=None, parent=None):    #------>.y matrix [:3] for position , [3:] for velocity , .sol(t) for matrix at time t
+    def calcintegral(self, r=None, v=None, parent=None, siblings: Optional[list] = None):    #------>.y matrix [:3] for position , [3:] for velocity , .sol(t) for matrix at time t
+
         r = self.position if r is None else r
         v = self.velocity if v is None else v
         parent = self.parent if parent is None else parent
@@ -101,34 +127,67 @@ class PhysObject:
 
             return np.concatenate((velocity, acceleration))
 
+        def eventMaker(target):
+
+            def soi_event(t, state):
+                spacecraft_position = state[:3]
+                target_position = target.getState(t)[:3]
+
+                distance = np.linalg.norm(
+                    spacecraft_position - target_position
+                )
+
+                return distance - target.soi_radius
+
+            event = soi_event  # type: Any
+            event.direction = 0
+            event.terminal = True
+
+            return event
+
+
+        events = (
+        [eventMaker(target) for target in siblings]
+        if siblings
+        else None
+    )
+
         solution = solve_ivp(
             derivative,
             (0, self.dt),
             state0,
             method='DOP853',
+            events=events,
             dense_output=True,
             atol = 1e-6,
             rtol = 1e-6
         )
+
+        if siblings is not None:
+            for event_target, event_time in zip(siblings, solution.t_events or []):
+                if len(event_time) > 0:
+                    print('Soi change with:', event_target, 'at', event_time, 's, at location', solution.y_events)
+                    self.dt = event_time[0]
 
         return solution
 
 
 #dt = 2000000000
 
-Earth = FixObject(6.671e6, 5.972e24 , (0,0,0), (0,0,0))
+Earth = FixObject('Earth', 6.671e6, 5.972e24 , (0,0,0), (0,0,0))
 
 #Moon = PhysObject( 1, 10000, (100000+ Earth.radius, 0, 0), (0,10850.5,0), parent=Earth)
-Moon = PhysObject(1, 7.34767309e22, np.array([384399000, 0, 0], dtype=DTYPE), np.array([0,1018,0], dtype=DTYPE), parent=Earth)
+Moon = PhysObject('Moon', 1, 7.34767309e22, np.array([384399000, 0, 0], dtype=DTYPE), np.array([0,1018,0], dtype=DTYPE), parent=Earth)
 
-#Ship = PhysObject(1, 2000, np.array([300000000, 0, 0], dtype=DTYPE), np.array([0, 1000, 0], dtype=DTYPE), Earth)
+Ship = PhysObject('Ship', 1, 2000, np.array([384390000, 0, 0], dtype=DTYPE), np.array([0,700,0], dtype=DTYPE), parent=Earth)
 
 start_time = time.time()
 
 solutionMoon =  Moon.calcintegral()
+solutionShip =  Ship.calcintegral(siblings=[Earth, Moon])
 
-
-#solutionShip =  Ship.calcintegral()
+# --------- debug printing
+print(solutionShip)
 
 print("Final position:", solutionMoon.y[:3 , -1])
 print("Final velocity:", solutionMoon.y[3: ,-1])
@@ -137,12 +196,14 @@ position_difference = Moon.position - solutionMoon.y[:3, -1]
 print("position difference:", position_difference)
 
 print(time.time()-start_time)
-print(Moon.soi_radius)
+print(Ship.checkSoi(Moon.dt/2, Moon))
 
 
-#   - matplotlib visualization
+#   ---------- matplotlib visualization---------------------------------
 t = np.linspace(0, Moon.dt, 10000)
+tship = np.linspace(0, Ship.dt,1000)
 states = solutionMoon.sol(t)
+statesship = solutionShip.sol(tship)
 
 # Position is states[0:3]
 x = states[0]
@@ -176,6 +237,19 @@ ax.scatter(
     s=50,
     label='Moon start'
 )
+
+# Position is states[0:3]
+x2 = statesship[0]
+y2 = statesship[1]
+z2 = statesship[2]
+
+# Velocity is states[3:6]
+vx2 = statesship[3]
+vy2 = statesship[4]
+vz2 = statesship[5]
+
+ax.plot(x2, y2, z2, label='Ship trajectory', color='yellow')
+
 ax.axis('equal')
 ax.set_xlabel('X [m]')
 ax.set_ylabel('Y [m]')
