@@ -8,9 +8,37 @@ import matplotlib.pyplot as plt
 
 DTYPE = np.float64
 
+class Hierarchy:
+    def __init__(self) -> None:
+        self.hierarchy = {}
+
+    def __repr__(self):
+         return str(self.hierarchy)
+
+    def add(self, target: PhysObject | FixObject):
+        self.hierarchy[target] = []
+        
+
+
+    def getParent(self, target):
+        return target.parent
+
+    def getSiblings(self, target):
+
+           return [
+            other
+            for other in self.hierarchy.values()
+            if other.parent is target.parent
+        ]
+
+
+
+
+
 class FixObject:
     def __init__(self, name, radius, mass, position, velocity):
 
+        self.name = name
         self.radius = radius
         self.mass = mass
         self.position = np.asarray(position, dtype=float)
@@ -18,6 +46,9 @@ class FixObject:
 
         self.mu = constants.G * self.mass
         self.soi_radius = 1e67
+        self.parent = None
+        hierarchy.add(self)
+        
 
     def __repr__(self) -> str:
             return self.name 
@@ -53,6 +84,8 @@ class PhysObject:
         self.dt = self.getOrbitalPeriod()
         self.soi_radius = np.linalg.norm(self.position - parent.position) * ((self.mass/parent.mass)**(2/5)) if parent is not None else 1e67
         self.orbit = self.calcintegral()
+
+        hierarchy.add(self)
 
     def __repr__(self) -> str:
         return self.name  
@@ -94,17 +127,8 @@ class PhysObject:
 
          return distance - target.soi_radius
 
-    def findSoiChange(self):
-         pass
-
-
-    def soiCheckFunction(self, t, target):
-        """check distance to target soi: >0 for outside, <0 for inside, used in minimize function"""
-
-        spacecraft_pos = self.getState(t)[:3]
-        target_pos = target.getState(t)[:3]
-
-        return np.linalg.norm(spacecraft_pos - target_pos) - target.soi_radius
+    def changeparent(self, new_parent):
+         self.parent = new_parent
 
 
 
@@ -145,12 +169,9 @@ class PhysObject:
 
             return event
 
-
-        events = (
-        [eventMaker(target) for target in siblings]
-        if siblings
-        else None
-    )
+        
+        events = [eventMaker(target) for target in siblings] if siblings else None
+        events.append(eventMaker(self.parent)) if events else None
 
         solution = solve_ivp(
             derivative,
@@ -173,22 +194,24 @@ class PhysObject:
 
 
 #dt = 2000000000
+hierarchy = Hierarchy()
+
 
 Earth = FixObject('Earth', 6.671e6, 5.972e24 , (0,0,0), (0,0,0))
 
 #Moon = PhysObject( 1, 10000, (100000+ Earth.radius, 0, 0), (0,10850.5,0), parent=Earth)
 Moon = PhysObject('Moon', 1, 7.34767309e22, np.array([384399000, 0, 0], dtype=DTYPE), np.array([0,1018,0], dtype=DTYPE), parent=Earth)
 
-Ship = PhysObject('Ship', 1, 2000, np.array([384390000, 0, 0], dtype=DTYPE), np.array([0,700,0], dtype=DTYPE), parent=Earth)
+Ship = PhysObject('Ship', 1, 2000, np.array([360000000, 0, 0], dtype=DTYPE), np.array([0,1018,0], dtype=DTYPE), parent=Earth)
 
 start_time = time.time()
 
-solutionMoon =  Moon.calcintegral()
-solutionShip =  Ship.calcintegral(siblings=[Earth, Moon])
+solutionMoon =  Moon.orbit
+solutionShip =  Ship.orbit
+print(hierarchy)
 
 # --------- debug printing
 print(solutionShip)
-
 print("Final position:", solutionMoon.y[:3 , -1])
 print("Final velocity:", solutionMoon.y[3: ,-1])
 print("Orbital Period:", Moon.getOrbitalPeriod())
