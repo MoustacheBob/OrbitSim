@@ -15,20 +15,18 @@ class Hierarchy:
     def __repr__(self):
          return str(self.hierarchy)
 
-    def add(self, target: PhysObject | FixObject):
-        self.hierarchy[target] = []
+    def add(self, target: PhysObject | FixObject, parent: PhysObject | FixObject = None):
+        self.hierarchy[target] = parent if parent is not None else None
         
-
-
     def getParent(self, target):
-        return target.parent
+        return self.hierarchy[target]
 
     def getSiblings(self, target):
 
            return [
             other
-            for other in self.hierarchy.values()
-            if other.parent is target.parent
+            for other in self.hierarchy.keys()
+            if self.hierarchy[other] is self.hierarchy[target] and other is not target
         ]
 
 
@@ -37,7 +35,7 @@ class Hierarchy:
 
 class FixObject:
     def __init__(self, name, radius, mass, position, velocity):
-
+        hierarchy.add(self, None)
         self.name = name
         self.radius = radius
         self.mass = mass
@@ -47,7 +45,7 @@ class FixObject:
         self.mu = constants.G * self.mass
         self.soi_radius = 1e67
         self.parent = None
-        hierarchy.add(self)
+        
         
 
     def __repr__(self) -> str:
@@ -72,6 +70,7 @@ class FixObject:
 class PhysObject:
     def __init__(self, name, radius, mass, position, velocity, parent = None):
 
+        hierarchy.add(self, parent)
         self.name = name
         self.radius = radius
         self.mass = mass
@@ -85,7 +84,7 @@ class PhysObject:
         self.soi_radius = np.linalg.norm(self.position - parent.position) * ((self.mass/parent.mass)**(2/5)) if parent is not None else 1e67
         self.orbit = self.calcintegral()
 
-        hierarchy.add(self)
+        
 
     def __repr__(self) -> str:
         return self.name  
@@ -169,9 +168,9 @@ class PhysObject:
 
             return event
 
-        
-        events = [eventMaker(target) for target in siblings] if siblings else None
-        events.append(eventMaker(self.parent)) if events else None
+        targets = hierarchy.getSiblings(self) if siblings is None else siblings
+        targets.append(hierarchy.getParent(self))
+        events = [eventMaker(target) for target in targets]
 
         solution = solve_ivp(
             derivative,
@@ -184,11 +183,11 @@ class PhysObject:
             rtol = 1e-6
         )
 
-        if siblings is not None:
-            for event_target, event_time in zip(siblings, solution.t_events or []):
-                if len(event_time) > 0:
-                    print('Soi change with:', event_target, 'at', event_time, 's, at location', solution.y_events)
-                    self.dt = event_time[0]
+        
+        for event_target, event_time in zip(targets, solution.t_events or []):
+            if len(event_time) > 0:
+                print('Soi change with:', event_target, 'at', event_time, 's, at location', solution.y_events)
+                self.dt = event_time[0]
 
         return solution
 
@@ -202,13 +201,14 @@ Earth = FixObject('Earth', 6.671e6, 5.972e24 , (0,0,0), (0,0,0))
 #Moon = PhysObject( 1, 10000, (100000+ Earth.radius, 0, 0), (0,10850.5,0), parent=Earth)
 Moon = PhysObject('Moon', 1, 7.34767309e22, np.array([384399000, 0, 0], dtype=DTYPE), np.array([0,1018,0], dtype=DTYPE), parent=Earth)
 
-Ship = PhysObject('Ship', 1, 2000, np.array([360000000, 0, 0], dtype=DTYPE), np.array([0,1018,0], dtype=DTYPE), parent=Earth)
+Ship = PhysObject('Ship', 1, 2000, np.array([360000000, 0, 0], dtype=DTYPE), np.array([0,818,0], dtype=DTYPE), parent=Earth)
 
 start_time = time.time()
 
 solutionMoon =  Moon.orbit
 solutionShip =  Ship.orbit
 print(hierarchy)
+print(hierarchy.getSiblings(Ship))
 
 # --------- debug printing
 print(solutionShip)
