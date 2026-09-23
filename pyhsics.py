@@ -1,4 +1,5 @@
 import numpy as np
+from pyparsing import Optional
 import scipy as sp
 from scipy import constants
 from scipy.integrate import solve_ivp
@@ -28,6 +29,11 @@ class Hierarchy:
             for other in self.hierarchy.keys()
             if self.hierarchy[other] is self.hierarchy[target] and other is not target
         ]
+
+    def setparent(self, target: PhysObject | FixObject, new_parent: PhysObject | FixObject):
+        self.hierarchy[target] = new_parent
+        target.parent = new_parent
+        
 
 
 
@@ -81,7 +87,7 @@ class PhysObject:
         
         self.mu = constants.G * self.mass
         self.dt = self.getOrbitalPeriod()
-        self.soi_radius = np.linalg.norm(self.position - parent.position) * ((self.mass/parent.mass)**(2/5)) if parent is not None else 1e67
+        self.soi_radius = self.getSoiRadius()
         self.orbit = self.calcintegral()
 
         
@@ -102,8 +108,10 @@ class PhysObject:
         norm_v = np.linalg.norm(v)
 
         #-------- fatass formula: T[seconds] = 2Pi* mu * ( (2mu/r - v^2) ^(-3/2))
-
-        t = 2 * constants.pi * parent.mu * ((((2*parent.mu )/norm_r) - norm_v**2)**(-3/2))
+        with np.errstate(invalid='ignore'):
+            t = 2 * constants.pi * parent.mu * ((((2*parent.mu )/norm_r) - norm_v**2)**(-3/2))
+        if np.isnan(t):
+            t = 1000
 
         return t
 
@@ -127,12 +135,20 @@ class PhysObject:
          return distance - target.soi_radius
 
     def changeparent(self, new_parent):
-         self.parent = new_parent
+        hierarchy.setparent(self, new_parent)
+        self.soi_radius = self.getSoiRadius()
+        #self.orbit = self.calcintegral()
+        #self.dt = self.getOrbitalPeriod()
+
+    def getSoiRadius(self):
+        parent = hierarchy.getParent(self)
+
+        return np.linalg.norm(self.position - parent.position) * ((self.mass/parent.mass)**(2/5)) if parent is not None else 1e67
 
 
 
     def calcintegral(self, r=None, v=None, parent=None, siblings: Optional[list] = None):    #------>.y matrix [:3] for position , [3:] for velocity , .sol(t) for matrix at time t
-
+        self.dt = self.getOrbitalPeriod(r, v, parent)
         r = self.position if r is None else r
         v = self.velocity if v is None else v
         parent = self.parent if parent is None else parent
@@ -171,7 +187,7 @@ class PhysObject:
         targets = hierarchy.getSiblings(self) if siblings is None else siblings
         targets.append(hierarchy.getParent(self))
         events = [eventMaker(target) for target in targets]
-
+        #print(events)
         solution = solve_ivp(
             derivative,
             (0, self.dt),
@@ -188,6 +204,10 @@ class PhysObject:
             if len(event_time) > 0:
                 print('Soi change with:', event_target, 'at', event_time, 's, at location', solution.y_events)
                 self.dt = event_time[0]
+                self.changeparent(event_target)
+                self.position = solution.sol(event_time[0])[:3]
+                self.velocity = solution.sol(event_time[0])[3:]
+                
 
         return solution
 
@@ -201,7 +221,7 @@ Earth = FixObject('Earth', 6.671e6, 5.972e24 , (0,0,0), (0,0,0))
 #Moon = PhysObject( 1, 10000, (100000+ Earth.radius, 0, 0), (0,10850.5,0), parent=Earth)
 Moon = PhysObject('Moon', 1, 7.34767309e22, np.array([384399000, 0, 0], dtype=DTYPE), np.array([0,1018,0], dtype=DTYPE), parent=Earth)
 
-Ship = PhysObject('Ship', 1, 2000, np.array([360000000, 0, 0], dtype=DTYPE), np.array([0,818,0], dtype=DTYPE), parent=Earth)
+Ship = PhysObject('Ship', 1, 2000, np.array([-36000000, 0, 0], dtype=DTYPE), np.array([1900,-4048,0], dtype=DTYPE), parent=Earth)
 
 start_time = time.time()
 
@@ -211,15 +231,17 @@ print(hierarchy)
 print(hierarchy.getSiblings(Ship))
 
 # --------- debug printing
-print(solutionShip)
-print("Final position:", solutionMoon.y[:3 , -1])
-print("Final velocity:", solutionMoon.y[3: ,-1])
-print("Orbital Period:", Moon.getOrbitalPeriod())
+#print(solutionShip)
+print("Final position:", solutionShip.y[:3 , -1])
+print("Final velocity:", solutionShip.y[3: ,-1])
+print("Orbital Period:", Ship.dt)
 position_difference = Moon.position - solutionMoon.y[:3, -1]
 print("position difference:", position_difference)
 
 print(time.time()-start_time)
-print(Ship.checkSoi(Moon.dt/2, Moon))
+
+
+
 
 
 #   ---------- matplotlib visualization---------------------------------
@@ -272,6 +294,26 @@ vy2 = statesship[4]
 vz2 = statesship[5]
 
 ax.plot(x2, y2, z2, label='Ship trajectory', color='yellow')
+
+
+
+Ship2 = Ship.calcintegral()
+tship2 = np.linspace(0, Ship.dt,1000)
+statesship2 = Ship2.sol(tship2)
+print(statesship2)
+#Position is states[0:3]
+x3 = statesship2[0]
+y3 = statesship2[1]
+z3 = statesship2[2]
+#Velocity is states[3:6]
+vx3 = statesship2[3]
+vy3 = statesship2[4]
+vz3 = statesship2[5]
+
+ax.plot(x3, y3, z3, label='Ship2 trajectory', color='yellow')
+
+
+
 
 ax.axis('equal')
 ax.set_xlabel('X [m]')
