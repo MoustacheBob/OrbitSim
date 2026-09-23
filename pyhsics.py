@@ -101,7 +101,7 @@ class PhysObject:
 
         r = self.position if r is None else r
         v = self.velocity if v is None else v
-        parent = self.parent if parent is None else parent
+        parent = hierarchy.getParent(self) if parent is None else parent
 
         #--------- calculate normed postition and velocity
         norm_r = np.linalg.norm(r)
@@ -111,17 +111,12 @@ class PhysObject:
         with np.errstate(invalid='ignore'):
             t = 2 * constants.pi * parent.mu * ((((2*parent.mu )/norm_r) - norm_v**2)**(-3/2))
         if np.isnan(t):
-            t = 1000
+            t = 5000000
 
         return t
 
-    def getState(self, t, orbital_period = None, orbit = None): 
-        """get position [:3] and velocity [3:] of  self with orbital period and orbit self if not specified"""
-
-        orbital_period = self.dt if orbital_period is None else orbital_period
-        orbit = self.dt if orbit is None else orbit
-
-        return self.orbit.sol(t % orbital_period)
+    def getState(self, t):
+        return self.orbit.sol(t)
 
 
     def checkSoi(self, t, target: PhysObject | FixObject) -> float:
@@ -147,11 +142,12 @@ class PhysObject:
 
 
 
-    def calcintegral(self, r=None, v=None, parent=None, siblings: Optional[list] = None):    #------>.y matrix [:3] for position , [3:] for velocity , .sol(t) for matrix at time t
-        self.dt = self.getOrbitalPeriod(r, v, parent)
+    def calcintegral(self, r=None, v=None, parent=None, siblings: Optional[list] = None, start_time = 0):    #------>.y matrix [:3] for position , [3:] for velocity , .sol(t) for matrix at time t
+        
         r = self.position if r is None else r
         v = self.velocity if v is None else v
-        parent = self.parent if parent is None else parent
+        parent = hierarchy.getParent(self) if parent is None else parent
+        self.dt = self.getOrbitalPeriod(r, v, parent)
         state0 = np.concatenate((r, v)).astype(DTYPE)
 
 
@@ -159,7 +155,7 @@ class PhysObject:
             position = state[:3]
             velocity = state[3:]
 
-            relative_r = position - parent.position
+            relative_r = position - parent.getState(t + start_time)[:3]
             distance = np.linalg.norm(relative_r)
 
             acceleration = -parent.mu * relative_r / distance**3
@@ -170,7 +166,7 @@ class PhysObject:
 
             def soi_event(t, state):
                 spacecraft_position = state[:3]
-                target_position = target.getState(t)[:3]
+                target_position = target.getState(t + start_time)[:3]
 
                 distance = np.linalg.norm(
                     spacecraft_position - target_position
@@ -179,7 +175,10 @@ class PhysObject:
                 return distance - target.soi_radius
 
             event = soi_event  # type: Any
-            event.direction = 0
+            if target == hierarchy.getParent(self):
+                 event.direction = 1
+            else:
+                 event.direction = -1
             event.terminal = True
 
             return event
@@ -187,7 +186,7 @@ class PhysObject:
         targets = hierarchy.getSiblings(self) if siblings is None else siblings
         targets.append(hierarchy.getParent(self))
         events = [eventMaker(target) for target in targets]
-        #print(events)
+        print(events)
         solution = solve_ivp(
             derivative,
             (0, self.dt),
@@ -221,7 +220,7 @@ Earth = FixObject('Earth', 6.671e6, 5.972e24 , (0,0,0), (0,0,0))
 #Moon = PhysObject( 1, 10000, (100000+ Earth.radius, 0, 0), (0,10850.5,0), parent=Earth)
 Moon = PhysObject('Moon', 1, 7.34767309e22, np.array([384399000, 0, 0], dtype=DTYPE), np.array([0,1018,0], dtype=DTYPE), parent=Earth)
 
-Ship = PhysObject('Ship', 1, 2000, np.array([-36000000, 0, 0], dtype=DTYPE), np.array([1900,-4048,0], dtype=DTYPE), parent=Earth)
+Ship = PhysObject('Ship', 1, 2000, np.array([-36000000, 0, 0], dtype=DTYPE), np.array([1850,-4198,0], dtype=DTYPE), parent=Earth)
 
 start_time = time.time()
 
@@ -295,12 +294,14 @@ vz2 = statesship[5]
 
 ax.plot(x2, y2, z2, label='Ship trajectory', color='yellow')
 
+tempt = Ship.dt
 
-
-Ship2 = Ship.calcintegral()
+Ship2 = Ship.calcintegral(start_time=Ship.dt)
 tship2 = np.linspace(0, Ship.dt,1000)
 statesship2 = Ship2.sol(tship2)
-print(statesship2)
+print(Ship2)
+print(Ship.checkSoi(tempt + Ship.dt, Moon))
+x
 #Position is states[0:3]
 x3 = statesship2[0]
 y3 = statesship2[1]
@@ -310,9 +311,17 @@ vx3 = statesship2[3]
 vy3 = statesship2[4]
 vz3 = statesship2[5]
 
-ax.plot(x3, y3, z3, label='Ship2 trajectory', color='yellow')
+ax.plot(x3, y3, z3, label='Ship2 trajectory', color='red')
 
-
+ax.scatter(
+    xs=Moon.orbit.sol(tempt)[0],
+    ys=Moon.orbit.sol(tempt)[1],
+    
+    color='orange',
+    s=100,
+    label='moon',
+    marker='o'
+)
 
 
 ax.axis('equal')
