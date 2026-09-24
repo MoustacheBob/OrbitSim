@@ -1,13 +1,29 @@
 import numpy as np
-from pyparsing import Optional
+from typing import Any, Optional
 import scipy as sp
 from scipy import constants
 from scipy.integrate import solve_ivp
 import time
 import matplotlib.pyplot as plt
-
+import sched
 
 DTYPE = np.float64
+
+t0: float = time.time()
+curtime: float = 0.0
+timewarp: float = 1
+
+
+def timefunc() -> float:
+    global t0, curtime
+
+    now = time.time()
+    curtime += (now - t0) * timewarp
+    t0 = now
+
+    return curtime
+
+
 
 class Hierarchy:
     def __init__(self) -> None:
@@ -16,7 +32,11 @@ class Hierarchy:
     def __repr__(self):
          return str(self.hierarchy)
 
-    def add(self, target: PhysObject | FixObject, parent: PhysObject | FixObject = None):
+    def add(
+        self,
+        target: PhysObject | FixObject,
+        parent: PhysObject | FixObject | None = None,
+    ) -> None:
         self.hierarchy[target] = parent if parent is not None else None
         
     def getParent(self, target):
@@ -30,7 +50,11 @@ class Hierarchy:
             if self.hierarchy[other] is self.hierarchy[target] and other is not target
         ]
 
-    def setparent(self, target: PhysObject | FixObject, new_parent: PhysObject | FixObject):
+    def setparent(
+        self,
+        target: PhysObject | FixObject,
+        new_parent: PhysObject | FixObject,
+    ) -> None:
         self.hierarchy[target] = new_parent
         target.parent = new_parent
         
@@ -40,6 +64,8 @@ class Hierarchy:
 
 
 class FixObject:
+    parent: PhysObject | FixObject | None
+
     def __init__(self, name, radius, mass, position, velocity):
         hierarchy.add(self, None)
         self.name = name
@@ -80,7 +106,7 @@ class PhysObject:
         self.name = name
         self.radius = radius
         self.mass = mass
-        self.parent = parent
+        self.parent = hierarchy.getParent(self)
         self.position = np.asarray(position, dtype=DTYPE)
         self.velocity = np.asarray(velocity, dtype=DTYPE)
         self.acceleration = np.array([ 0, 0, 0], dtype=DTYPE)
@@ -129,11 +155,26 @@ class PhysObject:
 
          return distance - target.soi_radius
 
-    def changeparent(self, new_parent):
+    def onParentChange(self, new_parent: PhysObject | FixObject, transition_time: float | None = None) -> None:
+        """Move this object's state into ``new_parent``'s reference frame."""
+        old_parent = hierarchy.getParent(self)
+        # The stored orbit is relative to the old parent. Convert that state
+        # to inertial coordinates before expressing it relative to the new one.
+        relative_time = self.dt if transition_time is None else transition_time
+        old_state = self.getState(relative_time)
+        old_parent_state = old_parent.getState(relative_time)
+        new_parent_state = new_parent.getState(relative_time)
+
+        inertial_position = old_parent_state[:3] + old_state[:3]
+        inertial_velocity = old_parent_state[3:] + old_state[3:]
+        self.position = inertial_position - new_parent_state[:3]
+        self.velocity = inertial_velocity - new_parent_state[3:]
+
         hierarchy.setparent(self, new_parent)
+        self.parent = new_parent
         self.soi_radius = self.getSoiRadius()
-        #self.orbit = self.calcintegral()
-        #self.dt = self.getOrbitalPeriod()
+        #self.orbit = self.calcintegral(parent=new_parent)
+        
 
     def getSoiRadius(self):
         parent = hierarchy.getParent(self)
@@ -203,24 +244,22 @@ class PhysObject:
             if len(event_time) > 0:
                 print('Soi change with:', event_target, 'at', event_time, 's, at location', solution.y_events)
                 self.dt = event_time[0]
-                self.changeparent(event_target)
-                self.position = solution.sol(event_time[0])[:3]
-                self.velocity = solution.sol(event_time[0])[3:]
-                
+                #schedule.enter(self.dt, priority=0, action=self.onParentChange, argument=(event_target, event_time[0]))
+                self.onParentChange(event_target)
 
         return solution
 
 
 #dt = 2000000000
 hierarchy = Hierarchy()
-
+schedule = sched.scheduler(timefunc=timefunc, delayfunc=time.sleep)
 
 Earth = FixObject('Earth', 6.671e6, 5.972e24 , (0,0,0), (0,0,0))
 
 #Moon = PhysObject( 1, 10000, (100000+ Earth.radius, 0, 0), (0,10850.5,0), parent=Earth)
 Moon = PhysObject('Moon', 1, 7.34767309e22, np.array([384399000, 0, 0], dtype=DTYPE), np.array([0,1018,0], dtype=DTYPE), parent=Earth)
 
-Ship = PhysObject('Ship', 1, 2000, np.array([-36000000, 0, 0], dtype=DTYPE), np.array([1850,-4198,0], dtype=DTYPE), parent=Earth)
+Ship = PhysObject('Ship', 1, 2000, np.array([-36000000, 0, 0], dtype=DTYPE), np.array([1930,-4128,0], dtype=DTYPE), parent=Earth)
 
 start_time = time.time()
 
@@ -238,7 +277,7 @@ position_difference = Moon.position - solutionMoon.y[:3, -1]
 print("position difference:", position_difference)
 
 print(time.time()-start_time)
-
+print(schedule.queue)
 
 
 
