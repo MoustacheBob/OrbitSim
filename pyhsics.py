@@ -91,11 +91,8 @@ class FixObject:
         self.position += velocity * dt
 
     def getState(self, t, orbital_period = None, orbit = None):
-            
-                    return self.position
-            
+        return np.concatenate((self.position, self.velocity)).astype(DTYPE, copy=False)
 
-    
 
     
 
@@ -142,7 +139,13 @@ class PhysObject:
         return t
 
     def getState(self, t):
-        return self.orbit.sol(t)
+        try:
+            state = self.orbit.sol(t)
+        except Exception:
+            state = np.concatenate((self.position, self.velocity)).astype(DTYPE, copy=False)
+            print("getstate called without orbit calculated")
+        return state
+
 
 
     def checkSoi(self, t, target: PhysObject | FixObject) -> float:
@@ -155,7 +158,7 @@ class PhysObject:
 
          return distance - target.soi_radius
 
-    def onParentChange(self, new_parent: PhysObject | FixObject, transition_time: float | None = None) -> None:
+    def onParentChange(self, new_parent: PhysObject | FixObject, transition_time: float | None = None, ) -> None:
         """Move this object's state into ``new_parent``'s reference frame."""
         old_parent = hierarchy.getParent(self)
         # The stored orbit is relative to the old parent. Convert that state
@@ -169,6 +172,8 @@ class PhysObject:
         inertial_velocity = old_parent_state[3:] + old_state[3:]
         self.position = inertial_position - new_parent_state[:3]
         self.velocity = inertial_velocity - new_parent_state[3:]
+
+        print(np.concatenate((self.position, self.velocity)))
 
         hierarchy.setparent(self, new_parent)
         self.parent = new_parent
@@ -196,7 +201,7 @@ class PhysObject:
             position = state[:3]
             velocity = state[3:]
 
-            relative_r = position - parent.getState(t + start_time)[:3]
+            relative_r = position
             distance = np.linalg.norm(relative_r)
 
             acceleration = -parent.mu * relative_r / distance**3
@@ -340,7 +345,7 @@ tship2 = np.linspace(0, Ship.dt,1000)
 statesship2 = Ship2.sol(tship2)
 print(Ship2)
 print(Ship.checkSoi(tempt + Ship.dt, Moon))
-x
+
 #Position is states[0:3]
 x3 = statesship2[0]
 y3 = statesship2[1]
