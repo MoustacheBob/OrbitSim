@@ -6,6 +6,7 @@ from scipy.integrate import solve_ivp
 import time
 import matplotlib.pyplot as plt
 import sched
+from config import OBJECTS, FixStruct, PhysStruct
 
 DTYPE = np.float64
 
@@ -41,11 +42,7 @@ class Hierarchy:
     def __repr__(self):
          return str(self.hierarchy)
 
-    def add(
-        self,
-        target: PhysObject | FixObject,
-        parent: PhysObject | FixObject | None = None,
-    ) -> None:
+    def add(self, target: PhysObject | FixObject, parent: PhysObject | FixObject | None = None,):
         self.hierarchy[target] = parent if parent is not None else None
         
     def getParent(self, target):
@@ -75,13 +72,13 @@ class Hierarchy:
 class FixObject:
     parent: PhysObject | FixObject | None
 
-    def __init__(self, name, radius, mass, position, velocity):
+    def __init__(self, name, radius, mass):
         hierarchy.add(self, None)
         self.name = name
         self.radius = radius
         self.mass = mass
-        self.position = np.asarray(position, dtype=float)
-        self.velocity = np.asarray(velocity, dtype=float)
+        self.position = np.zeros(3, dtype=float)
+        self.velocity = np.zeros(3, dtype=float)
 
         self.mu = constants.G * self.mass
         self.soi_radius = 1e67
@@ -92,12 +89,6 @@ class FixObject:
     def __repr__(self) -> str:
             return self.name 
 
-    def update(self, dt):
-        self.move(self.velocity, dt)
-
-    
-    def move(self, velocity, dt):
-        self.position += velocity * dt
 
     def getState(self, t, orbital_period = None, orbit = None):
         return np.concatenate((self.position, self.velocity)).astype(DTYPE, copy=False)
@@ -106,7 +97,7 @@ class FixObject:
     
 
 class PhysObject:
-    def __init__(self, name, radius, mass, position, velocity, parent = None):
+    def __init__(self, name, radius, mass, position, velocity, parent):
 
         hierarchy.add(self, parent)
         self.name = name
@@ -263,20 +254,52 @@ class PhysObject:
                 schedule.enterabs(self.orbit_end_time, priority=0, action=self.onParentChange, argument=(event_target, self.orbit_end_time))
                 
         schedule.enterabs(self.orbit_end_time, priority=1000, action=self.calcintegral, kwargs={'start_time' : self.orbit_end_time})
-        print('ran integration of :', self)
+        print('ran integration of :', self, ', t: ', start_time)
         return solution
 
+
+def phys_object_maker():
+        physobjects = {}
+
+        for object in OBJECTS:
+            if isinstance(object, FixStruct):
+                physobjects[object.name] = FixObject(
+                    name=object.name,
+                    radius=object.radius,
+                    mass=object.mass
+                    )
+
+            elif isinstance(object, PhysStruct):
+
+                parent = None
+                if object.parent is not None:           #-----> needed to ensure objects receive their actual parent object,
+                    parent = physobjects[object.parent] #-----> Config needs parents to be before actual object (no sun -> Moon -> Earth)
+
+                physobjects[object.name] = PhysObject(
+                    name=object.name,
+                    radius=object.radius,
+                    mass=object.mass,
+                    position=object.position,
+                    velocity=object.velocity,
+                    parent=parent
+                )
+
+        return physobjects
 
 #dt = 2000000000
 hierarchy = Hierarchy()
 schedule = sched.scheduler(timefunc=timefunc, delayfunc=delayfunc)
 
-Earth = FixObject('Earth', 6.671e6, 5.972e24 , (0,0,0), (0,0,0))
+objects = phys_object_maker()
 
-#Moon = PhysObject( 1, 10000, (100000+ Earth.radius, 0, 0), (0,10850.5,0), parent=Earth)
-Moon = PhysObject('Moon', 1, 7.34767309e22, np.array([384399000, 0, 0], dtype=DTYPE), np.array([0,1018,0], dtype=DTYPE), parent=Earth)
+Earth = objects['Earth']
+Moon = objects['Moon']
+Ship = objects['Ship']
 
-Ship = PhysObject('Ship', 1, 2000, np.array([-36000000, 0, 0], dtype=DTYPE), np.array([1930,-4128,0], dtype=DTYPE), parent=Earth)
+# #Moon = PhysObject( 1, 10000, (100000+ Earth.radius, 0, 0), (0,10850.5,0), parent=Earth)
+# Moon = PhysObject('Moon', 1, 7.34767309e22, np.array([384399000, 0, 0], dtype=DTYPE), np.array([0,1018,0], dtype=DTYPE), parent=Earth)
+
+# Ship = PhysObject('Ship', 1, 2000, np.array([36000000, 0, 0], dtype=DTYPE), np.array([0,4500,0], dtype=DTYPE), parent=Earth)
 
 start_time = timefunc()
 
@@ -301,9 +324,9 @@ print(schedule.queue)
 
 #   ---------- matplotlib visualization---------------------------------
 t = np.linspace(start_time, Moon.orbit_end_time + start_time, 10000)
-#tship = np.linspace(0, Ship.orbital_period,1000)
+tship = np.linspace(start_time, Ship.orbit_end_time + start_time,1000)
 states = solutionMoon.sol(t)
-#statesship = solutionShip.sol(tship)
+statesship = solutionShip.sol(tship)
 
 # Position is states[0:3]
 x = states[0]
@@ -338,54 +361,53 @@ ax.scatter(
     label='Moon start'
 )
 
-# # Position is states[0:3]
-# x2 = statesship[0]
-# y2 = statesship[1]
-# z2 = statesship[2]
+# Position is states[0:3]
+x2 = statesship[0]
+y2 = statesship[1]
+z2 = statesship[2]
 
-# # Velocity is states[3:6]
-# vx2 = statesship[3]
-# vy2 = statesship[4]
-# vz2 = statesship[5]
+# Velocity is states[3:6]
+vx2 = statesship[3]
+vy2 = statesship[4]
+vz2 = statesship[5]
 
-# ax.plot(x2, y2, z2, label='Ship trajectory', color='yellow')
+ax.plot(x2, y2, z2, label='Ship trajectory', color='yellow')
 
-# # tempt = Ship.orbital_period
+# tempt = Ship.orbit_end_time
+# Ship.onParentChange(new_parent=Moon, transition_time=Ship.orbit_end_time)
+# Ship2 = Ship.calcintegral(start_time=Ship.orbit_end_time)
+# tship2 = np.linspace(tempt, Ship.orbit_end_time,1000)
+# statesship2 = Ship2.sol(tship2)
 
-# # Ship2 = Ship.calcintegral(start_time=Ship.orbital_period)
-# # tship2 = np.linspace(0, Ship.orbital_period,1000)
-# # statesship2 = Ship2.sol(tship2)
-# # print(Ship2)
-# # print(Ship.checkSoi(tempt + Ship.orbital_period, Moon))
 
-# # #Position is states[0:3]
-# # x3 = statesship2[0]
-# # y3 = statesship2[1]
-# # z3 = statesship2[2]
+# #Position is states[0:3]
+# x3 = statesship2[0]
+# y3 = statesship2[1]
+# z3 = statesship2[2]
 # # #Velocity is states[3:6]
-# # vx3 = statesship2[3]
-# # vy3 = statesship2[4]
-# # vz3 = statesship2[5]
+# vx3 = statesship2[3]
+# vy3 = statesship2[4]
+# vz3 = statesship2[5]
 
-# # ax.plot(x3, y3, z3, label='Ship2 trajectory', color='red')
+# ax.plot(x3, y3, z3, label='Ship2 trajectory', color='red')
 
-# # ax.scatter(
-# #     xs=Moon.orbit.sol(tempt)[0],
-# #     ys=Moon.orbit.sol(tempt)[1],
+# ax.scatter(
+#     xs=Moon.orbit.sol(tempt)[0],
+#     ys=Moon.orbit.sol(tempt)[1],
     
-# #     color='orange',
-# #     s=100,
-# #     label='moon',
-# #     marker='o'
-# # )
+#     color='orange',
+#     s=100,
+#     label='moon',
+#     marker='o'
+# )
 
 
-# ax.axis('equal')
-# ax.set_xlabel('X [m]')
-# ax.set_ylabel('Y [m]')
-# ax.set_zlabel('Z [m]')
-# ax.set_title('Moon trajectory')
-# ax.legend()
+ax.axis('equal')
+ax.set_xlabel('X [m]')
+ax.set_ylabel('Y [m]')
+ax.set_zlabel('Z [m]')
+ax.set_title('Moon trajectory')
+ax.legend()
 
 plt.show()
 
