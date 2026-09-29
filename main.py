@@ -9,6 +9,8 @@ application.asset_folder = Path(__file__).resolve().parent
 #Definitions:   Distances (radius, apoapsis, periapsis) in 1000km
 #               Mass in metric Tons           
 
+Text.default_font = 'textures/fonts/pixel_font.ttf'
+
 app = Ursina()
 
 class Visobject(Sprite):
@@ -17,24 +19,28 @@ class Visobject(Sprite):
         self.double_sided_setter(True)
         self.world_scale = radius * 2 / 1_000_000 / self.model_bounds.size.x  
         self.position = physobjects[self.name].getState(0)[:3] / 1000000
+        self.texture_scale = Vec2(-1, 1)
 
+        
         # if orbit_color is not None:
         #     self.orbit = Entity(model=Circle(segments=100, mode='line'), color=color.__getattribute__(orbit_color), parent=self.parent)
         #     self.orbit.scale = (apoapsis + periapsis) / 2 / self.model_bounds.size.x
         #     self.orbit.rotation_x = 90
         #     self.orbit.position = (apoapsis - periapsis) / 2 / self.model_bounds.size.x, 0, 0
         
-        phys_object = physobjects[self.name]
+        self.phys_object: PhysObject | FixObject = physobjects[self.name]
 
         #---------soi construction-----
         self.Soi = None
-        if phys_object.parent is not None:
+        if self.phys_object.parent is not None:
             self.Soi = Sprite(texture='Soi2', parent=self)
-            self.Soi.scale = phys_object.soi_radius / radius
+            self.Soi.scale = self.phys_object.soi_radius / radius
 
         #---------infot text construction-----
-        self.info_text = Text(text=f'{self.name}\n{phys_object.mass:.2e} kg\n{self.position} m', parent=self, position = (0, -self.model_bounds.size.y/2 -3/self.world_scale.y, 0), origin=(0, 0), enabled=True)
-        self.info_text.world_scale = 50
+        self.info_text = Text(text=f'{self.name}\n{self.phys_object.mass:.2e} kg\n{self.position} m', parent=self, position = (0, -self.model_bounds.size.y/2 -3/self.world_scale.y, 0), origin=(0, 0), enabled=True)
+        self.info_text.world_scale = Vec3(-50, 50, 50)
+        self.selected_sprite = Sprite(texture='selected', parent = self, world_scale= 7)
+        
 
     def update(self):
         self.world_quaternion = Quat(0,0, 1, 0) * camera.world_quaternion 
@@ -75,9 +81,13 @@ editor_cam = EditorCamera()
 editor_cam.world_position = Vec3(0,0,-100)
 
 def update():
-    #earth.look_at(camera.world_position)
-    #moon.look_at(camera.world_position)
-    pass
+    now = timefunc()
+    for object in visobjects:
+         state = visobjects[object].phys_object.getState(now)[:3]
+         visobjects[object].position = Vec3(state[0] / 1000000, state[2] /1000000, state[1]/1000000)
+        #  visobjects[object].position.y = state[2] / 1000000
+        #  visobjects[object].position.z = state[1] / 1000000
 
+    schedule.run(blocking=False)
 
 app.run()

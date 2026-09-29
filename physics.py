@@ -11,7 +11,7 @@ from config import OBJECTS, FixStruct, PhysStruct
 DTYPE = np.float64
 
 simulation_start: float = time.monotonic()
-timewarp: float = 1
+timewarp: float = 10000
 clock_last_update: float = simulation_start
 clock_elapsed: float = 0.0
 
@@ -111,7 +111,8 @@ class PhysObject:
         self.mu = constants.G * self.mass
         self.orbit_end_time = timefunc() + self.getOrbitalPeriod()
         self.soi_radius = self.getSoiRadius()
-        self.orbit = self.calcintegral(start_time=0)
+        self.orbit: Any
+        self.calcintegral()
 
         
 
@@ -138,7 +139,7 @@ class PhysObject:
 
         return t
 
-    def getState(self, t):
+    def getState(self, t): #-----> np.array[x,y,z, vx,vy,vz] 
         try:
             state = self.orbit.sol(t)
         except Exception:
@@ -251,10 +252,15 @@ class PhysObject:
             if len(event_time) > 0:
                 print('Soi change with:', event_target, 'at', event_time, 's, at location', solution.y_events)
                 self.orbit_end_time = float(event_time[0])
-                schedule.enterabs(self.orbit_end_time, priority=0, action=self.onParentChange, argument=(event_target, self.orbit_end_time))
+
+                new_parent = event_target if event_target is not hierarchy.getParent(self) else hierarchy.getParent(event_target)
+
+                schedule.enterabs(self.orbit_end_time, priority=0, action=self.onParentChange, argument=(new_parent, self.orbit_end_time))
                 
         schedule.enterabs(self.orbit_end_time, priority=1000, action=self.calcintegral, kwargs={'start_time' : self.orbit_end_time})
         print('ran integration of :', self, ', t: ', start_time)
+
+        self.orbit = solution
         return solution
 
 
@@ -323,55 +329,55 @@ print(schedule.queue)
 
 
 #   ---------- matplotlib visualization---------------------------------
-# t = np.linspace(start_time, Moon.orbit_end_time + start_time, 10000)
-# tship = np.linspace(start_time, Ship.orbit_end_time + start_time,1000)
-# states = solutionMoon.sol(t)
-# statesship = solutionShip.sol(tship)
+t = np.linspace(start_time, Moon.orbit_end_time + start_time, 10000)
+tship = np.linspace(start_time, Ship.orbit_end_time + start_time,1000)
+states = solutionMoon.sol(t)
+statesship = solutionShip.sol(tship)
 
-# # Position is states[0:3]
-# x = states[0]
-# y = states[1]
-# z = states[2]
+# Position is states[0:3]
+x = states[0]
+y = states[1]
+z = states[2]
 
-# # Velocity is states[3:6]
-# vx = states[3]
-# vy = states[4]
-# vz = states[5]
+# Velocity is states[3:6]
+vx = states[3]
+vy = states[4]
+vz = states[5]
 
-# fig = plt.figure(figsize=(8, 8))
-# ax = fig.add_subplot(111, projection='3d')
+fig = plt.figure(figsize=(8, 8))
+ax = fig.add_subplot(111, projection='3d')
 
-# ax.plot(x, y, z, label='Moon trajectory', color='green')
-# ax.scatter(
-#     Earth.position[0],
-#     Earth.position[1],
-#     Earth.position[2],
-#     color='blue',
-#     s=100,
-#     label='Earth',
-#     marker='o'
-# )
+ax.plot(x, y, z, label='Moon trajectory', color='green')
+ax.scatter(
+    Earth.position[0],
+    Earth.position[1],
+    Earth.position[2],
+    color='blue',
+    s=100,
+    label='Earth',
+    marker='o'
+)
 
-# ax.scatter(
-#     x[0],
-#     y[0],
-#     z[0],
-#     color='red',
-#     s=50,
-#     label='Moon start'
-# )
+ax.scatter(
+    x[0],
+    y[0],
+    z[0],
+    color='red',
+    s=50,
+    label='Moon start'
+)
 
-# # Position is states[0:3]
-# x2 = statesship[0]
-# y2 = statesship[1]
-# z2 = statesship[2]
+# Position is states[0:3]
+x2 = statesship[0]
+y2 = statesship[1]
+z2 = statesship[2]
 
-# # Velocity is states[3:6]
-# vx2 = statesship[3]
-# vy2 = statesship[4]
-# vz2 = statesship[5]
+# Velocity is states[3:6]
+vx2 = statesship[3]
+vy2 = statesship[4]
+vz2 = statesship[5]
 
-# ax.plot(x2, y2, z2, label='Ship trajectory', color='yellow')
+ax.plot(x2, y2, z2, label='Ship trajectory', color='yellow')
 
 # tempt = Ship.orbit_end_time
 # Ship.onParentChange(new_parent=Moon, transition_time=Ship.orbit_end_time)
@@ -402,14 +408,14 @@ print(schedule.queue)
 # )
 
 
-# ax.axis('equal')
-# ax.set_xlabel('X [m]')
-# ax.set_ylabel('Y [m]')
-# ax.set_zlabel('Z [m]')
-# ax.set_title('Moon trajectory')
-# ax.legend()
+ax.axis('equal')
+ax.set_xlabel('X [m]')
+ax.set_ylabel('Y [m]')
+ax.set_zlabel('Z [m]')
+ax.set_title('Moon trajectory')
+ax.legend()
 
-# plt.show()
+#plt.show()
 
 
 
