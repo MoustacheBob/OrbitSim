@@ -1,39 +1,65 @@
 from ursina import *
+from config import *
+from physics import *
+from pathlib import Path
+from ursina import application
 
+application.asset_folder = Path(__file__).resolve().parent
 
 #Definitions:   Distances (radius, apoapsis, periapsis) in 1000km
 #               Mass in metric Tons           
 
 app = Ursina()
 
-class GravBody(Sprite):
-    def __init__(self,radius = 1, mass = 6.583 * 10**21, apoapsis = 0, periapsis = None, draw_soi = False, texture=None, ppu = None, **kwargs):
-        super().__init__(texture, ppu, **kwargs)
-        if periapsis == None: periapsis = apoapsis
+class Visobject(Sprite):
+    def __init__(self, radius: float = 1, texture :str = None, orbit_color: str = 'white', customparent: Entity = None, **kwargs):
+        super().__init__(texture, **kwargs)
         self.double_sided_setter(True)
-        self.scale = radius * 2 / self.model_bounds.size.x
+        self.world_scale = radius * 2 / 1_000_000 / self.model_bounds.size.x  
+        self.position = physobjects[self.name].getState(0)[:3] / 1000000
 
-        # #Soi construction
-        # if draw_soi == True:
-        #     self.Soi = Sprite(texture='Soi2', parent=self)
-        #     Soi_radius = 
+        # if orbit_color is not None:
+        #     self.orbit = Entity(model=Circle(segments=100, mode='line'), color=color.__getattribute__(orbit_color), parent=self.parent)
+        #     self.orbit.scale = (apoapsis + periapsis) / 2 / self.model_bounds.size.x
+        #     self.orbit.rotation_x = 90
+        #     self.orbit.position = (apoapsis - periapsis) / 2 / self.model_bounds.size.x, 0, 0
+        
+        phys_object = physobjects[self.name]
+
+        #---------soi construction-----
+        self.Soi = None
+        if phys_object.parent is not None:
+            self.Soi = Sprite(texture='Soi2', parent=self)
+            self.Soi.scale = phys_object.soi_radius / radius
+
+        #---------infot text construction-----
+        self.info_text = Text(text=f'{self.name}\n{phys_object.mass:.2e} kg\n{self.position} m', parent=self, position = (0, -self.model_bounds.size.y/2 -3/self.world_scale.y, 0), origin=(0, 0), enabled=True)
+        self.info_text.world_scale = 50
 
     def update(self):
-        self.look_at(camera.world_position)
+        self.world_quaternion = Quat(0,0, 1, 0) * camera.world_quaternion 
 
 
-Earth = GravBody(radius=6.3781, texture='Earth')
+def vis_object_maker():
+        visobjects = {}
 
-# earth = Sprite(texture='Earth', double_sided = True)
-# earth_target_radius = 6.3781
-# earth_scale = earth_target_radius*2 / earth.model_bounds.size.x
-# earth.scale = earth_scale
+        for object in OBJECTS:
 
-Moon = GravBody(radius=1.737, texture='FullMoon', position = (384.399,0,0))
+            parent = None
+            if object.parent is not None:           #-----> needed to ensure objects receive their actual parent object,
+                parent = visobjects[object.parent] #-----> Config needs parents to be before actual object (no sun -> Moon -> Earth)
 
-#Orbit = Entity(model=Circle(resolution=64, radius=10, mode='line'), color=color.red, scale=3, position=Vec3(20,0,0))
+            visobjects[object.name] = Visobject(
+                name=object.name,
+                radius=object.radius,
+                orbit_color=object.orbit_color if hasattr(object, 'orbit_color') else None,
+                texture=object.texture,
+                customparent=parent
+            )
 
-Soi = Sprite(texture='Soi2', scale=20)
+        return visobjects
+
+visobjects = vis_object_maker()
 
 
 #-------Sky----------

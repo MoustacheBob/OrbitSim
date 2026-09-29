@@ -11,7 +11,7 @@ from config import OBJECTS, FixStruct, PhysStruct
 DTYPE = np.float64
 
 simulation_start: float = time.monotonic()
-timewarp: float = 100000
+timewarp: float = 1
 clock_last_update: float = simulation_start
 clock_elapsed: float = 0.0
 
@@ -111,7 +111,7 @@ class PhysObject:
         self.mu = constants.G * self.mass
         self.orbit_end_time = timefunc() + self.getOrbitalPeriod()
         self.soi_radius = self.getSoiRadius()
-        self.orbit = self.calcintegral()
+        self.orbit = self.calcintegral(start_time=0)
 
         
 
@@ -290,11 +290,11 @@ def phys_object_maker():
 hierarchy = Hierarchy()
 schedule = sched.scheduler(timefunc=timefunc, delayfunc=delayfunc)
 
-objects = phys_object_maker()
+physobjects = phys_object_maker()
 
-Earth = objects['Earth']
-Moon = objects['Moon']
-Ship = objects['Ship']
+Earth = physobjects['Earth']
+Moon = physobjects['Moon']
+Ship = physobjects['Ship']
 
 # #Moon = PhysObject( 1, 10000, (100000+ Earth.radius, 0, 0), (0,10850.5,0), parent=Earth)
 # Moon = PhysObject('Moon', 1, 7.34767309e22, np.array([384399000, 0, 0], dtype=DTYPE), np.array([0,1018,0], dtype=DTYPE), parent=Earth)
@@ -323,55 +323,55 @@ print(schedule.queue)
 
 
 #   ---------- matplotlib visualization---------------------------------
-t = np.linspace(start_time, Moon.orbit_end_time + start_time, 10000)
-tship = np.linspace(start_time, Ship.orbit_end_time + start_time,1000)
-states = solutionMoon.sol(t)
-statesship = solutionShip.sol(tship)
+# t = np.linspace(start_time, Moon.orbit_end_time + start_time, 10000)
+# tship = np.linspace(start_time, Ship.orbit_end_time + start_time,1000)
+# states = solutionMoon.sol(t)
+# statesship = solutionShip.sol(tship)
 
-# Position is states[0:3]
-x = states[0]
-y = states[1]
-z = states[2]
+# # Position is states[0:3]
+# x = states[0]
+# y = states[1]
+# z = states[2]
 
-# Velocity is states[3:6]
-vx = states[3]
-vy = states[4]
-vz = states[5]
+# # Velocity is states[3:6]
+# vx = states[3]
+# vy = states[4]
+# vz = states[5]
 
-fig = plt.figure(figsize=(8, 8))
-ax = fig.add_subplot(111, projection='3d')
+# fig = plt.figure(figsize=(8, 8))
+# ax = fig.add_subplot(111, projection='3d')
 
-ax.plot(x, y, z, label='Moon trajectory', color='green')
-ax.scatter(
-    Earth.position[0],
-    Earth.position[1],
-    Earth.position[2],
-    color='blue',
-    s=100,
-    label='Earth',
-    marker='o'
-)
+# ax.plot(x, y, z, label='Moon trajectory', color='green')
+# ax.scatter(
+#     Earth.position[0],
+#     Earth.position[1],
+#     Earth.position[2],
+#     color='blue',
+#     s=100,
+#     label='Earth',
+#     marker='o'
+# )
 
-ax.scatter(
-    x[0],
-    y[0],
-    z[0],
-    color='red',
-    s=50,
-    label='Moon start'
-)
+# ax.scatter(
+#     x[0],
+#     y[0],
+#     z[0],
+#     color='red',
+#     s=50,
+#     label='Moon start'
+# )
 
-# Position is states[0:3]
-x2 = statesship[0]
-y2 = statesship[1]
-z2 = statesship[2]
+# # Position is states[0:3]
+# x2 = statesship[0]
+# y2 = statesship[1]
+# z2 = statesship[2]
 
-# Velocity is states[3:6]
-vx2 = statesship[3]
-vy2 = statesship[4]
-vz2 = statesship[5]
+# # Velocity is states[3:6]
+# vx2 = statesship[3]
+# vy2 = statesship[4]
+# vz2 = statesship[5]
 
-ax.plot(x2, y2, z2, label='Ship trajectory', color='yellow')
+# ax.plot(x2, y2, z2, label='Ship trajectory', color='yellow')
 
 # tempt = Ship.orbit_end_time
 # Ship.onParentChange(new_parent=Moon, transition_time=Ship.orbit_end_time)
@@ -402,15 +402,14 @@ ax.plot(x2, y2, z2, label='Ship trajectory', color='yellow')
 # )
 
 
-ax.axis('equal')
-ax.set_xlabel('X [m]')
-ax.set_ylabel('Y [m]')
-ax.set_zlabel('Z [m]')
-ax.set_title('Moon trajectory')
-ax.legend()
+# ax.axis('equal')
+# ax.set_xlabel('X [m]')
+# ax.set_ylabel('Y [m]')
+# ax.set_zlabel('Z [m]')
+# ax.set_title('Moon trajectory')
+# ax.legend()
 
-plt.show()
+# plt.show()
 
 
 
-schedule.run()

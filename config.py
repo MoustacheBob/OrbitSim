@@ -11,7 +11,7 @@ class FixStruct():
         radius :float 
         mass : float 
         texture : str
-        
+        parent : str = None
 
 @dataclass          
 class PhysStruct():
@@ -36,21 +36,21 @@ OBJECTS = [
         PhysStruct(
             name ='Moon',
             radius = 1.738e6,
-            mass = 5.972e24,
+            mass = 7.34767309e22,
             parent = 'Earth',
             position = (384399000, 0, 0),
             velocity = (0,1018,0),
-            texture = 'Moon',
+            texture = 'FullMoon',
             orbit_color = 'blue'
         ),
 
         PhysStruct(
             name ='Ship',
-            radius = 0.5e6,
+            radius = 1e6,
             mass = 10000,
             parent = 'Earth',
-            position = (36000000, 0, 0),
-            velocity = (0,4500,0),
+            position = (-36000000, 0, 0),
+            velocity = (1800, -4200, 0),
             texture = 'RocketWhite',
             orbit_color = 'white'
         )
