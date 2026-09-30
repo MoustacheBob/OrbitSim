@@ -50,7 +50,7 @@ OBJECTS = [
             mass = 10000,
             parent = 'Earth',
             position = (-36000000, 0, 0),
-            velocity = (1800, -4200, 0),
+            velocity = (1800, 4200, 0),
             texture = 'RocketWhite',
             orbit_color = 'white'
         )

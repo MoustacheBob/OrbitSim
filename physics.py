@@ -11,7 +11,7 @@ from config import OBJECTS, FixStruct, PhysStruct
 DTYPE = np.float64
 
 simulation_start: float = time.monotonic()
-timewarp: float = 10000
+timewarp: float = 100000
 clock_last_update: float = simulation_start
 clock_elapsed: float = 0.0
 
@@ -79,7 +79,7 @@ class FixObject:
         self.mass = mass
         self.position = np.zeros(3, dtype=float)
         self.velocity = np.zeros(3, dtype=float)
-
+        self.vis_object: Any = None
         self.mu = constants.G * self.mass
         self.soi_radius = 1e67
         self.parent = None
@@ -107,7 +107,7 @@ class PhysObject:
         self.postion0 = np.asarray(position, dtype=DTYPE)
         self.velocity0 = np.asarray(velocity, dtype=DTYPE)
         self.acceleration = np.array([ 0, 0, 0], dtype=DTYPE)
-        
+        self.vis_object: Any = None
         self.mu = constants.G * self.mass
         self.orbit_end_time = timefunc() + self.getOrbitalPeriod()
         self.soi_radius = self.getSoiRadius()
@@ -172,7 +172,8 @@ class PhysObject:
         self.velocity0 = inertial_velocity - new_parent_state[3:]
 
         print(np.concatenate((self.postion0, self.velocity0)))
-
+        if self.vis_object is not None:
+            self.vis_object.custom_parent = getattr(new_parent, 'vis_object', None)
         hierarchy.setparent(self, new_parent)
         self.parent = new_parent
         self.soi_radius = self.getSoiRadius()
@@ -311,6 +312,7 @@ start_time = timefunc()
 
 solutionMoon =  Moon.orbit
 solutionShip =  Ship.orbit
+print(solutionMoon.y[0])
 print(hierarchy)
 print(hierarchy.getSiblings(Ship))
 

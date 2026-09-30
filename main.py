@@ -14,21 +14,20 @@ Text.default_font = 'textures/fonts/pixel_font.ttf'
 app = Ursina()
 
 class Visobject(Sprite):
-    def __init__(self, radius: float = 1, texture :str = None, orbit_color: str = 'white', customparent: Entity = None, **kwargs):
-        super().__init__(texture, **kwargs)
+    def __init__(self, radius: float = 1, texture :str = None, orbit_color: str = 'white', custom_parent: Entity = None, **kwargs):
+        super().__init__(texture, collider = 'box', **kwargs)
         self.double_sided_setter(True)
         self.world_scale = radius * 2 / 1_000_000 / self.model_bounds.size.x  
-        self.position = physobjects[self.name].getState(0)[:3] / 1000000
         self.texture_scale = Vec2(-1, 1)
-
-        
-        # if orbit_color is not None:
-        #     self.orbit = Entity(model=Circle(segments=100, mode='line'), color=color.__getattribute__(orbit_color), parent=self.parent)
-        #     self.orbit.scale = (apoapsis + periapsis) / 2 / self.model_bounds.size.x
-        #     self.orbit.rotation_x = 90
-        #     self.orbit.position = (apoapsis - periapsis) / 2 / self.model_bounds.size.x, 0, 0
+        self.on_click = Func(self.select)
+        self.on_double_click = Func(self.on_double_select)
+        self.collider.scale = 50
+    
         
         self.phys_object: PhysObject | FixObject = physobjects[self.name]
+        self.phys_object.vis_object = self
+        self.custom_parent = custom_parent
+        self.update_position(0)
 
         #---------soi construction-----
         self.Soi = None
@@ -37,9 +36,34 @@ class Visobject(Sprite):
             self.Soi.scale = self.phys_object.soi_radius / radius
 
         #---------infot text construction-----
-        self.info_text = Text(text=f'{self.name}\n{self.phys_object.mass:.2e} kg\n{self.position} m', parent=self, position = (0, -self.model_bounds.size.y/2 -3/self.world_scale.y, 0), origin=(0, 0), enabled=True)
+        self.info_text = Text(text=f'{self.name}\n{self.phys_object.mass:.2e} kg\n{self.position} m', parent=self, position = (0, -self.model_bounds.size.y/2 -3/self.world_scale.y, 0), origin=(0, 0))
         self.info_text.world_scale = Vec3(-50, 50, 50)
+        self.info_text.visible = False
         self.selected_sprite = Sprite(texture='selected', parent = self, world_scale= 7)
+        self.selected_sprite.visible = False
+
+    def update_position(self, now = None):  
+         now = timefunc() if now is None else now
+         position = self.phys_object.getState(now)[:3].copy()
+         parent = self.custom_parent
+         while parent is not None:
+             position += parent.phys_object.getState(now)[:3]
+             parent = parent.custom_parent
+         self.position = Vec3(position[0] / 1000000, position[2] /1000000, position[1]/1000000)
+
+    def draw_conic(self, points: list[Vec3] | None = None, color: str, thickness: float = 2):
+        if points is None:
+            points_x = self.phys_object.orbit.y[0] / 1000000
+            points_y
+    def select(self):
+        for object in visobjects:
+            visobjects[object].selected_sprite.visible = False
+            visobjects[object].info_text.visible = False
+        self.selected_sprite.visible = not self.selected_sprite.visible
+        self.info_text.visible = not self.info_text.visible
+
+    def on_double_select(self):
+        editor_cam.position = self.position
         
 
     def update(self):
@@ -60,21 +84,28 @@ def vis_object_maker():
                 radius=object.radius,
                 orbit_color=object.orbit_color if hasattr(object, 'orbit_color') else None,
                 texture=object.texture,
-                customparent=parent
+                custom_parent=parent
             )
 
         return visobjects
 
 visobjects = vis_object_maker()
 
+def sky_click():
+    for object in visobjects:
+        visobjects[object].selected_sprite.visible = False
+        visobjects[object].info_text.visible = False
+
 
 #-------Sky----------
 
 sky_tex = load_texture('starBG')
 
-star_sky = Sky(texture=sky_tex)
+star_sky = Sky(texture=sky_tex, collider = 'box')
 
 star_sky.texture_scale = Vec2(5,2)
+
+star_sky.on_click = Func(sky_click)
 
 
 editor_cam = EditorCamera()
@@ -83,10 +114,7 @@ editor_cam.world_position = Vec3(0,0,-100)
 def update():
     now = timefunc()
     for object in visobjects:
-         state = visobjects[object].phys_object.getState(now)[:3]
-         visobjects[object].position = Vec3(state[0] / 1000000, state[2] /1000000, state[1]/1000000)
-        #  visobjects[object].position.y = state[2] / 1000000
-        #  visobjects[object].position.z = state[1] / 1000000
+         visobjects[object].update_position(now)
 
     schedule.run(blocking=False)
 
