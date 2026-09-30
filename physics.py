@@ -313,6 +313,7 @@ start_time = timefunc()
 solutionMoon =  Moon.orbit
 solutionShip =  Ship.orbit
 print(solutionMoon.y[0])
+print(solutionMoon.t)
 print(hierarchy)
 print(hierarchy.getSiblings(Ship))
 

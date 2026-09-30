@@ -3,6 +3,7 @@ from config import *
 from physics import *
 from pathlib import Path
 from ursina import application
+import numpy as np
 
 application.asset_folder = Path(__file__).resolve().parent
 
@@ -42,6 +43,8 @@ class Visobject(Sprite):
         self.selected_sprite = Sprite(texture='selected', parent = self, world_scale= 7)
         self.selected_sprite.visible = False
 
+        self.draw_conic(self.sample_points())
+
     def update_position(self, now = None):  
          now = timefunc() if now is None else now
          position = self.phys_object.getState(now)[:3].copy()
@@ -51,10 +54,27 @@ class Visobject(Sprite):
              parent = parent.custom_parent
          self.position = Vec3(position[0] / 1000000, position[2] /1000000, position[1]/1000000)
 
-    def draw_conic(self, points: list[Vec3] | None = None, color: str, thickness: float = 2):
-        if points is None:
-            points_x = self.phys_object.orbit.y[0] / 1000000
-            points_y
+    def draw_conic(self, points: list[Vec3], color: str = 'white', thickness: int = 2):
+
+        self.Conic = Entity(model=Mesh(vertices=points, mode='line', thickness=thickness), color=color)
+
+
+    def sample_points(self, sample_mult = 200, orbit = None):
+
+        orbit = self.phys_object.orbit if orbit is None and hasattr(self.phys_object, 'orbit') else orbit
+
+        if orbit is None:
+            return Vec3(0,0,0)
+        else:
+            points = []
+            times = np.linspace(orbit.t[0], orbit.t[-1], sample_mult)
+            for time in times:
+                point_position = orbit.sol(time)[:3]
+                points.append((point_position[0] / 1000000, point_position[2] / 1000000, point_position[1] / 1000000))
+
+            return points
+            
+
     def select(self):
         for object in visobjects:
             visobjects[object].selected_sprite.visible = False
@@ -118,4 +138,5 @@ def update():
 
     schedule.run(blocking=False)
 
+visobjects['Moon'].sample_points()
 app.run()
