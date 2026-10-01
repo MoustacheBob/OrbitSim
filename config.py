@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 import numpy as np
+from ursina import rgb,color
 
 DTYPE = np.float64
 
@@ -41,7 +42,7 @@ OBJECTS = [
             position = (384399000, 0, 0),
             velocity = (0,1018,0),
             texture = 'FullMoon',
-            orbit_color = 'blue'
+            orbit_color = rgb(1,0,0)
         ),
 
         PhysStruct(
@@ -50,9 +51,9 @@ OBJECTS = [
             mass = 10000,
             parent = 'Earth',
             position = (-36000000, 0, 0),
-            velocity = (1800, 4200, 0),
+            velocity = (1800, -4200, 0),
             texture = 'RocketWhite',
-            orbit_color = 'white'
+            orbit_color = rgb(0,0,1)
         )
 
 ]

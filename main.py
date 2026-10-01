@@ -15,14 +15,14 @@ Text.default_font = 'textures/fonts/pixel_font.ttf'
 app = Ursina()
 
 class Visobject(Sprite):
-    def __init__(self, radius: float = 1, texture :str = None, orbit_color: str = 'white', custom_parent: Entity = None, **kwargs):
+    def __init__(self, radius: float = 1, texture :str = None, orbit_color: str = rgb(1, 1, 1), custom_parent: Entity = None, **kwargs):
         super().__init__(texture, collider = 'box', **kwargs)
         self.double_sided_setter(True)
         self.world_scale = radius * 2 / 1_000_000 / self.model_bounds.size.x  
         self.texture_scale = Vec2(-1, 1)
         self.on_click = Func(self.select)
         self.on_double_click = Func(self.on_double_select)
-        self.collider.scale = 50
+        self.orbit_color = orbit_color
     
         
         self.phys_object: PhysObject | FixObject = physobjects[self.name]
@@ -50,16 +50,32 @@ class Visobject(Sprite):
          position = self.phys_object.getState(now)[:3].copy()
          parent = self.custom_parent
          while parent is not None:
-             position += parent.phys_object.getState(now)[:3]
-             parent = parent.custom_parent
+            position += parent.phys_object.getState(now)[:3]
+
+            if hasattr(self, 'Conic'):
+                self.Conic.position += parent.position
+
+            parent = parent.custom_parent
+
+             
          self.position = Vec3(position[0] / 1000000, position[2] /1000000, position[1]/1000000)
 
-    def draw_conic(self, points: list[Vec3], color: str = 'white', thickness: int = 2):
+         
 
-        self.Conic = Entity(model=Mesh(vertices=points, mode='line', thickness=thickness), color=color)
+    def draw_conic(self, points: list[Vec3], color: str | None = None, thickness: int = 2):
+        if not hasattr(self.phys_object, 'orbit'):
+            return
+
+        previous_conic = getattr(self, 'Conic', None)
+        if previous_conic is not None:
+            destroy(previous_conic, force_destroy=True)
+
+        color = self.orbit_color if color is None else color
+
+        self.Conic = Entity(model=Mesh(vertices=points, mode='line', thickness=thickness), color=color, alpha=0.25)
 
 
-    def sample_points(self, sample_mult = 200, orbit = None):
+    def sample_points(self, sample_mult = 2000, orbit = None):
 
         orbit = self.phys_object.orbit if orbit is None and hasattr(self.phys_object, 'orbit') else orbit
 
@@ -67,10 +83,13 @@ class Visobject(Sprite):
             return Vec3(0,0,0)
         else:
             points = []
-            times = np.linspace(orbit.t[0], orbit.t[-1], sample_mult)
+            times = np.linspace(orbit.t[0], orbit.t[-1], sample_mult, endpoint=False)
             for time in times:
                 point_position = orbit.sol(time)[:3]
                 points.append((point_position[0] / 1000000, point_position[2] / 1000000, point_position[1] / 1000000))
+
+            # point_position = orbit.sol(orbit.t[0])[:3]
+            # points.append((point_position[0] / 1000000, point_position[2] / 1000000, point_position[1] / 1000000))
 
             return points
             

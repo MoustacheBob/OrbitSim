@@ -262,6 +262,8 @@ class PhysObject:
         print('ran integration of :', self, ', t: ', start_time)
 
         self.orbit = solution
+        if hasattr(self, 'vis_object') and self.vis_object is not None:
+            self.vis_object.draw_conic(self.vis_object.sample_points(orbit=solution))
         return solution
 
 
