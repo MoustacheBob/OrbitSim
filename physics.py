@@ -10,8 +10,9 @@ from config import OBJECTS, FixStruct, PhysStruct
 
 DTYPE = np.float64
 
+#-------------------- global timekeeping ------------------------------
 simulation_start: float = time.monotonic()
-timewarp: float = 100000
+timewarp: float = 1
 clock_last_update: float = simulation_start
 clock_elapsed: float = 0.0
 
@@ -25,6 +26,7 @@ def timefunc() -> float:
 
 
 def set_timewarp(new_timewarp: float) -> None:
+    '''ensures timefunc() is called immediatly before changing timewarp'''
     global timewarp
     timefunc()
     timewarp = new_timewarp
@@ -33,7 +35,7 @@ def set_timewarp(new_timewarp: float) -> None:
 def delayfunc(delay: float) -> None:
     time.sleep(float(delay) / timewarp)
 
-
+#---------------------------------------------------------
 
 class Hierarchy:
     def __init__(self) -> None:
@@ -140,12 +142,16 @@ class PhysObject:
         return t
 
     def getState(self, t): #-----> np.array[x,y,z, vx,vy,vz] 
-        try:
-            state = self.orbit.sol(t)
-        except Exception:
-            state = np.concatenate((self.postion0, self.velocity0)).astype(DTYPE, copy=False)
-            print("getstate called without orbit calculated")
-        return state
+        if t <= self.orbit_end_time:
+            try:
+                state = self.orbit.sol(t)
+            except Exception:
+                state = np.concatenate((self.postion0, self.velocity0)).astype(DTYPE, copy=False)
+                print("getstate called without orbit calculated")
+            return state
+        else:
+            state = self.orbit.sol((t - self.orbit_end_time) + self.orbit.t[0])
+            return state
 
 
 
@@ -159,6 +165,8 @@ class PhysObject:
 
          return distance - target.soi_radius
 
+
+#-------------------------------- Changses coordinates of self to inertial coordinates, then to new parents coordinates, updates all 
     def onParentChange(self, new_parent: PhysObject | FixObject, transition_time: float) -> None:
         """Move this object's state into ``new_parent``'s reference frame."""
         old_parent = hierarchy.getParent(self)
@@ -188,12 +196,13 @@ class PhysObject:
 
 
     def calcintegral(self, r=None, v=None, parent=None, siblings: Optional[list] = None, start_time = None):    #------>.y matrix [:3] for position , [3:] for velocity , .sol(t) for matrix at time t
-        
+        prev_timewarp = timewarp
+        set_timewarp(0)
         start_time = timefunc() if start_time is None else start_time
         r = self.postion0 if r is None else r
         v = self.velocity0 if v is None else v
         parent = hierarchy.getParent(self) if parent is None else parent
-        self.orbit_end_time = self.getOrbitalPeriod(r, v, parent) + timefunc()
+        self.orbit_end_time = start_time + self.getOrbitalPeriod(r, v, parent)
         state0 = np.concatenate((r, v)).astype(DTYPE)
 
 
@@ -208,6 +217,7 @@ class PhysObject:
 
             return np.concatenate((velocity, acceleration))
 
+#----------------------------- Creates events with all parents and siblings to feed solve_ivp
         def eventMaker(target):
 
             def soi_event(t, state):
@@ -237,9 +247,11 @@ class PhysObject:
         targets.append(hierarchy.getParent(self))
         events = [eventMaker(target) for target in targets]
         #print(events)
+        
+#---------------- magic funtion without which nothing here works
         solution = solve_ivp(
             derivative,
-            (start_time, start_time + self.orbit_end_time),
+            (start_time, self.orbit_end_time),
             state0,
             method='DOP853',
             events=events,
@@ -248,7 +260,7 @@ class PhysObject:
             rtol = 1e-6
         )
 
-        
+#---------------------------------- Handles events in solve_ivp, i.e. orbital encounters. sets new orbit_end_time as end of calculation, schedules parent change at that time
         for event_target, event_time in zip(targets, solution.t_events or []):
             if len(event_time) > 0:
                 print('Soi change with:', event_target, 'at', event_time, 's, at location', solution.y_events)
@@ -258,12 +270,17 @@ class PhysObject:
 
                 schedule.enterabs(self.orbit_end_time, priority=0, action=self.onParentChange, argument=(new_parent, self.orbit_end_time))
                 
+#---------------------------------- Schedules next orbital calculation, low priority so that always after parent change
         schedule.enterabs(self.orbit_end_time, priority=1000, action=self.calcintegral, kwargs={'start_time' : self.orbit_end_time})
         print('ran integration of :', self, ', t: ', start_time)
 
         self.orbit = solution
+
+#---------------------------------- draws new conic
         if hasattr(self, 'vis_object') and self.vis_object is not None:
             self.vis_object.draw_conic(self.vis_object.sample_points(orbit=solution))
+
+        set_timewarp(prev_timewarp)
         return solution
 
 
@@ -421,6 +438,5 @@ ax.set_title('Moon trajectory')
 ax.legend()
 
 #plt.show()
-
 
 
