@@ -11,6 +11,7 @@ application.asset_folder = Path(__file__).resolve().parent
 #               Mass in metric Tons           
 
 Text.default_font = 'textures/fonts/pixel_font.ttf'
+selected: Visobject| None = None
 
 app = Ursina()
 
@@ -36,17 +37,50 @@ class Visobject(Sprite):
             self.Soi = Sprite(texture='Soi2', parent=self)
             self.Soi.scale = self.phys_object.soi_radius / radius
 
-        #---------infot text construction-----
-        self.info_text = Text(text=f'{self.name}\n{self.phys_object.mass:.2e} kg\n{self.position} m', parent=self, position = (0, -self.model_bounds.size.y/2 -3/self.world_scale.y, 0), origin=(0, 0))
-        self.info_text.world_scale = Vec3(-50, 50, 50)
+        # -------create info text once
+        self.info_text = Text(
+            text='',
+            parent=camera.ui,
+            position=Vec2(0,0),
+            scale=1,
+            #window.bottom_left.x, window.bottom_left.y + 20)
+        )
+        self.info_text.origin = Vec2(-.5,-.5)
+        self.info_text.position = window.bottom_left + Vec2(0.01,0.01)
         self.info_text.visible = False
+
+        # ----- selcected sprite
         self.selected_sprite = Sprite(texture='selected', parent = self, world_scale= 7, collider='box')
         self.selected_sprite.visible = False
         self.selected_sprite.on_double_click = Func(self.on_double_select)
         self.selected_sprite.on_click = Func(self.select)
+       
 
         self.draw_conic(self.sample_points())
 
+#------------------ object info---------------------------
+    def update_info_text(self, now: float):
+        phys = self.phys_object
+        state = phys.getState(now)
+        x, y, z = state[:3]
+        velocity = np.linalg.norm(state[3:])
+
+        self.info_text.text = (
+            f'Name: {phys.name}\n'
+            f'Mass: {phys.mass:.2e} kg\n'
+            f'Radius: {phys.radius:g} x 10^3 km\n'
+            # f'Position (m):'
+            # f' X: {x:.2e},'
+            # f' Y: {y:.2e},'
+            # f' Z: {z:.2e}\n'
+            f'Altitude: {round(np.linalg.norm((x,y,z))/1000, 2)}km\n'
+            f'Velocity magnitude: {velocity:.2e} m/s\n'
+            f'Orbital period: {phys.getOrbitalPeriod():.3e} s'
+    )
+
+
+
+        
     def update_position(self, now = None):  
         '''calculates gloabl postion by adding all parents relative position, if has a conic also sets its position to visobjects customparents position'''
 
@@ -108,44 +142,96 @@ class Visobject(Sprite):
             visobjects[object].info_text.visible = False
         self.selected_sprite.visible = True
         self.info_text.visible = True
+        global selected 
+        selected = self
 
     def on_double_select(self):
         editor_cam.position = self.position
+        selected = self
         
 
     def update(self):
         self.world_quaternion = Quat(0,0, 1, 0) * camera.world_quaternion 
 
 
+
+
+
+
+
 class Ui():
-    def __init__(self,ui_scale = 0.075,padding = 0.1) -> None:
+    def __init__(self,ui_scale = 0.075,padding = 0.01) -> None:
         self.ui_scale = ui_scale
-        padding = padding * ui_scale
+        self.padding = padding * ui_scale
         self.padding = padding
         
+#-------------------Clock-------------------------------------
+        self.clock = Text(
+            text='0d : 00h : 00m : 00s',
+            parent=camera.ui,
+            position=(0, window.top[1] - padding),
+            origin=(0, 0.5),
+            scale=1,
+        )
 
 #--------------------timewarp buttons--------------------
         self.timewarp_buttons = {0 :'||', 1 : '1', 10 : '10', 1000 : '1000', 10000 : '10K', 100000 : '100K', 1000000 : '1M'}
-        self.buttons = []
+        self.buttons = {}
         offset = 0
         for button in self.timewarp_buttons:
             cur_button = Button(text= self.timewarp_buttons[button], parent=camera.ui, model=Default, scale=ui_scale, position=window.top_left + Vec2(offset + padding, 0 - padding), origin=(-0.5, 0.5), color=rgb(50/255, 50/255, 50/255))
             cur_button.on_click = Func(set_timewarp, button)
-            self.buttons.append(cur_button)
+
+            self.buttons[cur_button.text] = cur_button
             offset += 1 * ui_scale + padding
 
 #------------------- List Visobjects---------------------
         offset=0
         for button in visobjects:
-            cur_button = Button(text=button, icon=visobjects[button].texture, parent=camera.ui, model=Default, scale=Vec2(5,0.5)* ui_scale, position=window.top_right + Vec2(0 - padding, offset - padding), origin=((0.5+padding), 0.5+padding), color=rgb(50/255, 50/255, 50/255))
-            cur_button.icon.scale = Vec2(.05, .5)
+            cur_button = Button(text=button, icon=visobjects[button].texture, parent=camera.ui, model=Default, scale=Vec2(2.5,0.25)* ui_scale, position=window.top_right + Vec2(0 - padding, offset - padding), origin=((0.5+padding), 0.5+padding), color=rgb(50/255, 50/255, 50/255))
+            cur_button.text_size = cur_button.text_size * .5
+            cur_button.icon.scale = Vec2(.025, .25)
             cur_button.icon.position = Vec2(-5, 0) * ui_scale
-            self.buttons.append(cur_button)
-            offset -= 1 * ui_scale/2 + padding
+            cur_button.on_click = Func(visobjects[button].select)
+            cur_button.on_double_click= Func(visobjects[button].on_double_select)
+
+            self.buttons[cur_button.text] = cur_button
+            offset -= cur_button.scale_x_getter() * ui_scale + padding
+
+#------------------- Burn buttons -----------------------
+        
+        
+
+        prograde = Text('Prograde', color=color.green, position=window.bottom_right + Vec2( -0.2, 0.2))
+        radial = Text('Radial-out', color=color.blue, position=window.bottom_right + Vec2( -0.2, 0.15))
+        normal = Text('Normal', color=rgb(158/255, 0, 237/255), position=window.bottom_right + Vec2( -0.2, 0.1))
+        self.burntext = [prograde, radial, normal]
+
+        self.burninput =  ThinSlider(min=1,max=500,default=100,text='m/s burn',step=1, position=window.bottom + Vec2(0,0.08))
+        self.burnbuttons = []
+        for text in self.burntext:
+            p_button = Button(text='+',text_color=color.black, color=text.color, position=text.position + Vec2(0.155,-0.01), scale=ui_scale/2.5)
+            m_button = Button(text='-',text_color=color.black, color=text.color, position=text.position + Vec2(-0.025,-0.01), scale=ui_scale/2.5)
+
+            p_button.on_click = Func(self.on_dvbutton_click, text.text, 1)
+            m_button.on_click = Func(self.on_dvbutton_click, text.text,-1)
+
+    def on_dvbutton_click(self, direction, directionmult = 1):
+        if selected is not None:
+            selected.phys_object.burnDv(direction, dv= directionmult * self.burninput.value)                
+
+
 
 
     def on_twbutton_click(self, timewarp):
         set_timewarp(timewarp)
+
+    def update(self, now: float) -> None:
+        total_seconds = max(0, int(now))
+        days, remainder = divmod(total_seconds, 24 * 60 * 60)
+        hours, remainder = divmod(remainder, 60 * 60)
+        minutes, seconds = divmod(remainder, 60)
+        self.clock.text = f'{days}d : {hours:02}h : {minutes:02}m : {seconds:02}s'
 
 
 def vis_object_maker():
@@ -196,8 +282,10 @@ window.collider_counter.disable()
 
 def update():
     now = timefunc()
+    UI.update(now)
     for object in visobjects:
          visobjects[object].update_position(now)
+         visobjects[object].update_info_text(now)
 
     schedule.run(blocking=False)
 

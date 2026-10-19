@@ -1,4 +1,24 @@
-import numpy as np
+from ursina import * 
 
-cords = np.array([ 650.77222316, -806.90702184,    0        ])
-print(np.linalg.norm(cords))
+from ursina import Ursina, ButtonGroup
+app = Ursina()
+wp = WindowPanel(
+    title='Custom Window',
+    content=(
+        Text('Name:'),
+        InputField(name='name_field'),
+        Button(text='Submit', color=color.azure),
+        Slider(),
+        Slider(),
+        ButtonGroup(('test', 'eslk', 'skffk'))
+        ),
+    popup=True
+    )
+wp.y = wp.panel.scale_y / 2 * wp.scale_y    # center the window panel
+wp.layout()
+
+def input(key):
+    if key == 'space':
+        wp.enabled = True
+
+app.run()

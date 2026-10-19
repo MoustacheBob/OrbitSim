@@ -86,7 +86,8 @@ class FixObject:
         self.soi_radius = 1e67
         self.parent = None
         
-        
+    def getOrbitalPeriod(self, r = None, v = None, parent = None):  
+        return 0
 
     def __repr__(self) -> str:
             return self.name 
@@ -95,6 +96,8 @@ class FixObject:
     def getState(self, t, orbital_period = None, orbit = None):
         return np.concatenate((self.position, self.velocity)).astype(DTYPE, copy=False)
 
+    def burnDv(self, direction = None, dv = 0):
+        return
 
     
 
@@ -114,8 +117,10 @@ class PhysObject:
         self.orbit_end_time = timefunc() + self.getOrbitalPeriod()
         self.soi_radius = self.getSoiRadius()
         self.orbit: Any
-        self.calcintegral()
+        self.events = []
 
+        self.calcintegral()
+        
         
 
     def __repr__(self) -> str:
@@ -165,6 +170,52 @@ class PhysObject:
 
          return distance - target.soi_radius
 
+    def burnDv(self, direction = 'Prograde', dv = 0):
+        state = self.getState(timefunc())
+        position = state[:3]
+        velocity = state[3:]
+            
+        
+        v_magnitude = np.linalg.norm(velocity)
+        
+        #prograde unitvector
+        u_P = velocity / v_magnitude
+        
+        #normal unit vector
+        cross_r_v = np.cross(position, velocity)
+        cross_magnitude = np.linalg.norm(cross_r_v)
+    
+        u_N = cross_r_v / cross_magnitude
+        
+        # radial-out unit vector
+        u_R = np.cross(u_P, u_N)
+        
+        # 5. Select the matching direction unit vector
+        if direction == 'Prograde':    # Prograde
+            u_burn = u_P
+        elif direction == 'Normal':  # Normal
+            u_burn = u_N
+        elif direction == 'Radial-out':  # Radial-Out
+            u_burn = u_R
+        else:
+            print("wtf thats not a burn direction")
+            u_burn = 0
+            
+        # Compute the change in velocity vector and the final velocity vector
+        dv_vector = dv * u_burn
+        new_velocity = velocity + dv_vector
+
+        for event in  self.events:
+            schedule.cancel(event)
+
+        self.events.clear()
+
+        self.postion0= position
+        self.velocity0 = new_velocity
+        self.calcintegral(r = position, v = new_velocity)
+        return new_velocity
+        
+
 
 #-------------------------------- Changses coordinates of self to inertial coordinates, then to new parents coordinates, updates all 
     def onParentChange(self, new_parent: PhysObject | FixObject, transition_time: float) -> None:
@@ -204,7 +255,7 @@ class PhysObject:
         parent = hierarchy.getParent(self) if parent is None else parent
         self.orbit_end_time = start_time + self.getOrbitalPeriod(r, v, parent)
         state0 = np.concatenate((r, v)).astype(DTYPE)
-
+        self.events.clear()
 
         def derivative(t, state):       #--------> function of gravity to feed into solve_ivp
             position = state[:3]
@@ -268,10 +319,10 @@ class PhysObject:
 
                 new_parent = event_target if event_target is not hierarchy.getParent(self) else hierarchy.getParent(event_target)
 
-                schedule.enterabs(self.orbit_end_time, priority=0, action=self.onParentChange, argument=(new_parent, self.orbit_end_time))
+                self.events.append(schedule.enterabs(self.orbit_end_time, priority=0, action=self.onParentChange, argument=(new_parent, self.orbit_end_time)))
                 
 #---------------------------------- Schedules next orbital calculation, low priority so that always after parent change
-        schedule.enterabs(self.orbit_end_time, priority=1000, action=self.calcintegral, kwargs={'start_time' : self.orbit_end_time})
+        self.events.append(schedule.enterabs(self.orbit_end_time, priority=1000, action=self.calcintegral, kwargs={'start_time' : self.orbit_end_time}))
         print('ran integration of :', self, ', t: ', start_time)
 
         self.orbit = solution
