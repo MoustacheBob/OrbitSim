@@ -216,6 +216,8 @@ class Ui():
             p_button.on_click = Func(self.on_dvbutton_click, text.text, 1)
             m_button.on_click = Func(self.on_dvbutton_click, text.text,-1)
 
+
+    
     def on_dvbutton_click(self, direction, directionmult = 1):
         if selected is not None:
             selected.phys_object.burnDv(direction, dv= directionmult * self.burninput.value)                

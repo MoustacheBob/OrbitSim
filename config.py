@@ -39,8 +39,8 @@ OBJECTS = [
             radius = 1.738e6,
             mass = 7.34767309e22,
             parent = 'Earth',
-            position = (384399000, 0, 0),
-            velocity = (0,1018,0),
+            position=(369.9e6, -104.7e6, 0),
+            velocity=(277.3, 979.9, 0),
             texture = 'FullMoon',
             orbit_color = rgb(1,0,0)
         ),
@@ -61,8 +61,8 @@ OBJECTS = [
                     radius = 1e6,
                     mass = 10000,
                     parent = 'Earth',
-                    position = (-36000000, 0, 0),
-                    velocity = (0, 4000, 0),
+                    position=(-6.771e6, 0, 0),
+                    velocity=(0, -10756, 0),
                     texture = 'RocketWhite',
                     orbit_color = rgb(0,0,1)
                 ),
