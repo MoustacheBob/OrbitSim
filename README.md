@@ -15,7 +15,7 @@ This projects consits of 3 Main parts:
 
 ### Usage
 *a version of python is required*
-I recommend cloning the repo, creating a virtual environment and installing the requirements from requirements.txt, then launching directly from main.py, but a zip file is also provided, from where the project can be launched with a .bat file ( i havent had much time to test this)
+I recommend cloning the repo, creating a virtual environment and installing the requirements from requirements.txt ( pip install -r requirements.txt ), then launching directly from main.py, but a zip file is also provided, from where the project can be launched with a .bat file (i havent had much time to test this and it is 200mb because of Ursina engine dependencies etc.)
 
 ## Changing the Config
 Within the config.py file either in the cloned repo or in the OrbitSim folder when using the zip, Scroll until the Array "OBJECTS". within this Array you can create 2 types of Objects:
