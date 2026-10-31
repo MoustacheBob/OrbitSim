@@ -14,7 +14,7 @@ This projects consits of 3 Main parts:
 - A Config file, that has all the information about a celestial body, front and beckend, that can be customized to change or expand the celestial bodies present in the Sim.
 
 ### Usage
-*a version of python is required*
+*windows with a version of python is required*
 I recommend cloning the repo, creating a virtual environment and installing the requirements from requirements.txt ( pip install -r requirements.txt ), then launching directly from main.py, but a zip file is also provided, from where the project can be launched with a .bat file (i havent had much time to test this and it is 200mb because of Ursina engine dependencies etc.)
 
 ## Changing the Config
