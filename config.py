@@ -51,17 +51,6 @@ OBJECTS = [
             orbit_color = rgb(1,0,0)
         ),
         
-        PhysStruct(
-            name ='Moon2',
-            radius = 1.738e6,
-            mass = 7.34767309e22,
-            parent = 'Earth',
-            # Lunar orbit snapshot rotated to align the representative free-return flyby.
-            position=(-230.015230e6, 108.027749e6, 0),
-            velocity=(-815.9468, -609.3686, 0),
-            texture = 'FullMoon',
-            orbit_color = rgb(1,1,0)
-            ),
         # PhysStruct(
         #     name ='Ship',
         #     radius = 1e6,
