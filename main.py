@@ -108,7 +108,7 @@ class Visobject(Sprite):
         color = self.orbit_color if color is None else color
         model = Mesh(vertices=points, mode='line', thickness=thickness)
         if getattr(self, 'Conic', None) is None:
-            self.Conic = Entity(model=model, color=color, alpha=0.25)
+            self.Conic = Entity(model=model, color=color, alpha=0.5)
         else:
             self.Conic.model = model
             self.Conic.color = color
