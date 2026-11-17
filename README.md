@@ -1,12 +1,12 @@
 # OrbitSim
-A Simple stylised orbit sim for my physics presentation
+A Simple stylised patched conic Orbit Simulator 
 
 
 <img width="1907" height="1057" alt="Screenshot 2026-10-30 221420" src="https://github.com/user-attachments/assets/0906bf24-e05c-433e-9598-4381edd7bf49" />
 
 
 ## About
-This Python project was made for a school project, to orbital flight more easy to visualize and for me to learn more about them aswell. The Physics solver usees a Patched Conics approach, i.e. Spheres of influence instead of n-body physics (still is suprisingly accurate), to dynamically calculate Body positions, velocities and acceleration. There are Timewarp options, a simple navigational Ui, Infos about the selected object and Buttons to burn a customizable of dV into any direction.
+This Python project was made to easily visualize orbital flight and for me to learn more about python and physiccs. The Physics solver usees a Patched Conics approach, i.e. Spheres of influence instead of n-body physics (still is suprisingly accurate), to dynamically calculate Body positions, velocities and acceleration. There are Timewarp options, a simple navigational Ui, Infos about the selected object and Buttons to burn a customizable of dV into any direction. I intendet to use this project during a somewhat adjacent Pysics presentation, this unfortunately wasnt possible, but even if, this project was entirely out my own initiative and not part of a school assignement.
 
 This projects consits of 3 Main parts:
 - A frontend, using the python Ursina Engine to roughly visualize coordinates updated in the backend with neat pixel art.
